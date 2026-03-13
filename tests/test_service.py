@@ -1,0 +1,111 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+from py_reports import ColumnSpec, ReportSpec, generate_report
+from py_reports.contracts import InputAdapter
+from py_reports.exceptions import InputAdapterError, ReportError
+from py_reports.renderers import default_renderer_registry
+
+
+def test_generate_csv_from_list_dict(tmp_path: Path) -> None:
+    data = [
+        {"id": "1", "customer": {"name": "Ana"}, "total": 10.5},
+        {"id": "2", "customer": {"name": "Bruno"}, "total": 20.0},
+    ]
+    spec = ReportSpec(
+        output_format="csv",
+        columns=[
+            ColumnSpec(label="ID", source="id", required=True),
+            ColumnSpec(label="Cliente", source="customer.name", required=True),
+            ColumnSpec(label="Total", source="total", formatter=lambda value: f"{value:.2f}"),
+        ],
+    )
+
+    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "sales.csv")
+
+    assert output.exists()
+    assert output.read_text(encoding="utf-8").splitlines() == [
+        "ID,Cliente,Total",
+        "1,Ana,10.50",
+        "2,Bruno,20.00",
+    ]
+
+
+def test_generate_csv_from_json_payload(tmp_path: Path) -> None:
+    payload = json.dumps(
+        [
+            {"id": "1", "customer": {"name": "Ana"}},
+            {"id": "2", "customer": {"name": "Bruno"}},
+        ]
+    )
+    spec = ReportSpec(
+        columns=[
+            ColumnSpec(label="ID", source="id", required=True),
+            ColumnSpec(label="Cliente", source="customer.name", required=True),
+        ]
+    )
+
+    output = generate_report(data_source=payload, spec=spec, destination=tmp_path / "customers.csv")
+
+    assert output.read_text(encoding="utf-8").splitlines() == [
+        "ID,Cliente",
+        "1,Ana",
+        "2,Bruno",
+    ]
+
+
+def test_non_supported_data_source_requires_explicit_adapter(tmp_path: Path) -> None:
+    spec = ReportSpec(columns=[ColumnSpec(label="ID", source="id")])
+
+    with pytest.raises(InputAdapterError):
+        generate_report(data_source=123, spec=spec, destination=tmp_path / "invalid.csv")
+
+
+def test_can_inject_custom_input_adapter(tmp_path: Path) -> None:
+    class CustomAdapter(InputAdapter):
+        def adapt(self, data_source: object):
+            return [{"id": "A-1"}]
+
+    spec = ReportSpec(columns=[ColumnSpec(label="ID", source="id", required=True)])
+    output = generate_report(
+        data_source=object(),
+        spec=spec,
+        destination=tmp_path / "custom.csv",
+        input_adapter=CustomAdapter(),
+    )
+
+    assert output.read_text(encoding="utf-8").splitlines() == ["ID", "A-1"]
+
+
+def test_default_registry_exposes_all_output_formats() -> None:
+    registry = default_renderer_registry()
+    assert set(registry.keys()) == {"csv", "xlsx", "pdf"}
+
+
+@pytest.mark.parametrize("output_format", ["xlsx", "pdf"])
+def test_non_implemented_renderers_raise_not_implemented(
+    output_format: str, tmp_path: Path
+) -> None:
+    data = [{"id": "1"}]
+    spec = ReportSpec(output_format=output_format, columns=[ColumnSpec(label="ID", source="id")])
+
+    with pytest.raises(NotImplementedError):
+        generate_report(data_source=data, spec=spec, destination=tmp_path / f"report.{output_format}")
+
+
+def test_missing_renderer_registration_raises_report_error(tmp_path: Path) -> None:
+    data = [{"id": "1"}]
+    spec = ReportSpec(columns=[ColumnSpec(label="ID", source="id", required=True)])
+    registry_without_csv = {"xlsx": default_renderer_registry()["xlsx"]}
+
+    with pytest.raises(ReportError):
+        generate_report(
+            data_source=data,
+            spec=spec,
+            destination=tmp_path / "report.csv",
+            renderer_registry=registry_without_csv,
+        )
