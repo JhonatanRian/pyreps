@@ -52,15 +52,12 @@ class XlsxRenderer(Renderer):
         output_path = Path(destination)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        materialized_rows = list(rows)
         labels = [column.label for column in spec.columns]
-        normalized_rows = [
-            {label: row.get(label) for label in labels} for row in materialized_rows
-        ]
-
         options = XlsxRenderOptions.from_metadata(spec.metadata)
-        write_worksheet(normalized_rows, str(output_path), sheet_name=options.sheet_name)
-        _apply_column_widths(output_path, labels, normalized_rows, options)
+
+        tracker = _WidthTracker(rows, labels)
+        write_worksheet(tracker, str(output_path), sheet_name=options.sheet_name)
+        _apply_column_widths(output_path, labels, tracker.max_lens, options)
         return output_path
 
 
@@ -75,7 +72,6 @@ class PdfRenderer(Renderer):
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
         labels = [column.label for column in spec.columns]
-        materialized_rows = list(rows)
 
         styles = getSampleStyleSheet()
         doc = SimpleDocTemplate(
@@ -88,14 +84,19 @@ class PdfRenderer(Renderer):
         )
 
         header_row = [Paragraph(f"<b>{label}</b>", styles["Normal"]) for label in labels]
-        data_rows = [
-            [str("" if row.get(label) is None else row.get(label)) for label in labels]
-            for row in materialized_rows
-        ]
-        paragraph_rows = [
-            [Paragraph(cell, styles["Normal"]) for cell in row]
-            for row in data_rows
-        ]
+
+        data_rows: list[list[str]] = []
+        paragraph_rows: list[list[Paragraph]] = []
+        for row in rows:
+            str_cells = [
+                str("" if row.get(label) is None else row.get(label))
+                for label in labels
+            ]
+            data_rows.append(str_cells)
+            paragraph_rows.append(
+                [Paragraph(cell, styles["Normal"]) for cell in str_cells]
+            )
+
         table_data = [header_row, *paragraph_rows]
 
         col_widths = _resolve_pdf_column_widths(labels, data_rows, doc.width)
@@ -128,25 +129,49 @@ def default_renderer_registry() -> dict[OutputFormat, Renderer]:
     return {"csv": CsvRenderer(), "xlsx": XlsxRenderer(), "pdf": PdfRenderer()}
 
 
+class _WidthTracker:
+    """Generator wrapper that tracks max string length per column while streaming rows."""
+
+    __slots__ = ("_rows", "_labels", "max_lens")
+
+    def __init__(self, rows: Iterable[Mapping[str, Any]], labels: list[str]) -> None:
+        self._rows = rows
+        self._labels = labels
+        self.max_lens: dict[str, int] = {label: len(label) for label in labels}
+
+    def __iter__(self):
+        for row in self._rows:
+            normalized: dict[str, Any] = {}
+            for label in self._labels:
+                value = row.get(label)
+                normalized[label] = value
+                if value is not None:
+                    self.max_lens[label] = max(
+                        self.max_lens[label], len(str(value))
+                    )
+            yield normalized
+
+
 def _apply_column_widths(
     output_path: Path,
     labels: list[str],
-    normalized_rows: list[dict[str, Any]],
+    max_lens: dict[str, int],
     options: XlsxRenderOptions,
 ) -> None:
     workbook = load_workbook(output_path)
     worksheet = workbook[options.sheet_name]
 
     for index, label in enumerate(labels, start=1):
-        values = [row.get(label) for row in normalized_rows]
-        width = _resolve_width_for_label(label=label, values=values, options=options)
+        width = _resolve_width_for_label(
+            label=label, max_len=max_lens.get(label, len(label)), options=options
+        )
         worksheet.column_dimensions[get_column_letter(index)].width = width
 
     workbook.save(output_path)
 
 
 def _resolve_width_for_label(
-    *, label: str, values: list[Any], options: XlsxRenderOptions
+    *, label: str, max_len: int, options: XlsxRenderOptions
 ) -> float:
     column_options = options.columns.get(label, XlsxColumnOptions())
     explicit = column_options.width
@@ -154,9 +179,6 @@ def _resolve_width_for_label(
     if explicit is not None:
         width = explicit
     elif options.width_mode in {"auto", "mixed"}:
-        max_len = max(
-            [len(label), *(len("" if value is None else str(value)) for value in values)]
-        )
         width = float(max_len) + options.auto_padding
     else:
         width = options.default_width
