@@ -16,6 +16,16 @@ def test_coerce_str_from_int() -> None:
     assert rows == [{"out": "42"}]
 
 
+def test_coerce_str_from_float() -> None:
+    rows = _map([{"v": 3.14}], type="str", source="v")
+    assert rows == [{"out": "3.14"}]
+
+
+def test_coerce_str_from_bool() -> None:
+    rows = _map([{"v": True}], type="str", source="v")
+    assert rows == [{"out": "True"}]
+
+
 def test_coerce_str_from_none_passthrough() -> None:
     rows = _map([{"v": None}], type="str", source="v")
     assert rows == [{"out": None}]
@@ -23,9 +33,24 @@ def test_coerce_str_from_none_passthrough() -> None:
 
 # ── int coercion ──────────────────────────────────────────────────────
 
+def test_coerce_int_identity() -> None:
+    rows = _map([{"v": 42}], type="int", source="v")
+    assert rows == [{"out": 42}]
+
+
 def test_coerce_int_from_string() -> None:
     rows = _map([{"v": "7"}], type="int", source="v")
     assert rows == [{"out": 7}]
+
+
+def test_coerce_int_from_string_with_whitespace() -> None:
+    rows = _map([{"v": " 7 "}], type="int", source="v")
+    assert rows == [{"out": 7}]
+
+
+def test_coerce_int_from_bool() -> None:
+    rows = _map([{"v": True}], type="int", source="v")
+    assert rows == [{"out": 1}]
 
 
 def test_coerce_int_from_float_lossless() -> None:
@@ -45,14 +70,29 @@ def test_coerce_int_from_invalid_string_raises() -> None:
 
 # ── float coercion ────────────────────────────────────────────────────
 
+def test_coerce_float_identity() -> None:
+    rows = _map([{"v": 3.14}], type="float", source="v")
+    assert rows == [{"out": pytest.approx(3.14)}]
+
+
 def test_coerce_float_from_string() -> None:
     rows = _map([{"v": "3.14"}], type="float", source="v")
+    assert rows == [{"out": pytest.approx(3.14)}]
+
+
+def test_coerce_float_from_string_with_whitespace() -> None:
+    rows = _map([{"v": " 3.14 "}], type="float", source="v")
     assert rows == [{"out": pytest.approx(3.14)}]
 
 
 def test_coerce_float_from_int() -> None:
     rows = _map([{"v": 10}], type="float", source="v")
     assert rows == [{"out": 10.0}]
+
+
+def test_coerce_float_from_invalid_string_raises() -> None:
+    with pytest.raises(MappingError, match="cannot coerce"):
+        _map([{"v": "abc"}], type="float", source="v")
 
 
 # ── bool coercion ─────────────────────────────────────────────────────
@@ -66,14 +106,34 @@ def test_coerce_bool_from_string(raw: str, expected: bool) -> None:
     assert rows == [{"out": expected}]
 
 
+def test_coerce_bool_identity() -> None:
+    rows = _map([{"v": False}], type="bool", source="v")
+    assert rows == [{"out": False}]
+
+
 def test_coerce_bool_from_int() -> None:
     rows = _map([{"v": 1}], type="bool", source="v")
     assert rows == [{"out": True}]
 
 
+def test_coerce_bool_from_int_zero() -> None:
+    rows = _map([{"v": 0}], type="bool", source="v")
+    assert rows == [{"out": False}]
+
+
+def test_coerce_bool_from_float() -> None:
+    rows = _map([{"v": 0.0}], type="bool", source="v")
+    assert rows == [{"out": False}]
+
+
 def test_coerce_bool_invalid_string_raises() -> None:
     with pytest.raises(MappingError, match="cannot coerce"):
         _map([{"v": "maybe"}], type="bool", source="v")
+
+
+def test_coerce_bool_unsupported_type_raises() -> None:
+    with pytest.raises(MappingError, match="cannot coerce"):
+        _map([{"v": [1, 2]}], type="bool", source="v")
 
 
 # ── date coercion ─────────────────────────────────────────────────────
@@ -98,21 +158,47 @@ def test_coerce_date_from_date_object() -> None:
     assert rows == [{"out": date(2025, 1, 1)}]
 
 
-def test_coerce_date_invalid_raises() -> None:
+def test_coerce_date_invalid_string_raises() -> None:
     with pytest.raises(MappingError, match="cannot coerce"):
         _map([{"v": "not-a-date"}], type="date", source="v")
 
 
+def test_coerce_date_unsupported_type_raises() -> None:
+    with pytest.raises(MappingError, match="cannot coerce"):
+        _map([{"v": 12345}], type="date", source="v")
+
+
 # ── datetime coercion ─────────────────────────────────────────────────
+
+def test_coerce_datetime_identity() -> None:
+    dt = datetime(2025, 6, 15, 10, 30)
+    rows = _map([{"v": dt}], type="datetime", source="v")
+    assert rows == [{"out": dt}]
+
 
 def test_coerce_datetime_from_iso_string() -> None:
     rows = _map([{"v": "2025-06-15T10:30:00"}], type="datetime", source="v")
     assert rows == [{"out": datetime(2025, 6, 15, 10, 30)}]
 
 
+def test_coerce_datetime_from_space_separated_string() -> None:
+    rows = _map([{"v": "2025-06-15 10:30:00"}], type="datetime", source="v")
+    assert rows == [{"out": datetime(2025, 6, 15, 10, 30)}]
+
+
 def test_coerce_datetime_from_date_object() -> None:
     rows = _map([{"v": date(2025, 6, 15)}], type="datetime", source="v")
     assert rows == [{"out": datetime(2025, 6, 15)}]
+
+
+def test_coerce_datetime_invalid_string_raises() -> None:
+    with pytest.raises(MappingError, match="cannot coerce"):
+        _map([{"v": "not-a-datetime"}], type="datetime", source="v")
+
+
+def test_coerce_datetime_unsupported_type_raises() -> None:
+    with pytest.raises(MappingError, match="cannot coerce"):
+        _map([{"v": 12345}], type="datetime", source="v")
 
 
 # ── interaction with formatter ────────────────────────────────────────
@@ -140,13 +226,61 @@ def test_no_type_passes_value_through() -> None:
 
 # ── default value with type ──────────────────────────────────────────
 
-def test_default_value_is_not_coerced() -> None:
-    """When value is missing and default is used, coercion is skipped (default is already correct)."""
+def test_default_value_typed_correctly_passes_through() -> None:
     spec = ReportSpec(columns=[
         ColumnSpec(label="out", source="missing", type="int", default=0),
     ])
     rows = map_records([{"other": "x"}], spec)
     assert rows == [{"out": 0}]
+
+
+def test_default_string_value_is_coerced_by_type() -> None:
+    """Default values are also subject to coercion when type is set."""
+    spec = ReportSpec(columns=[
+        ColumnSpec(label="out", source="missing", type="int", default="42"),
+    ])
+    rows = map_records([{"other": "x"}], spec)
+    assert rows == [{"out": 42}]
+
+
+def test_default_none_skips_coercion() -> None:
+    spec = ReportSpec(columns=[
+        ColumnSpec(label="out", source="missing", type="int", default=None),
+    ])
+    rows = map_records([{"other": "x"}], spec)
+    assert rows == [{"out": None}]
+
+
+# ── required + type interaction ──────────────────────────────────────
+
+def test_required_field_with_type_coerces_value() -> None:
+    spec = ReportSpec(columns=[
+        ColumnSpec(label="out", source="v", type="int", required=True),
+    ])
+    rows = map_records([{"v": "10"}], spec)
+    assert rows == [{"out": 10}]
+
+
+def test_required_missing_raises_before_coercion() -> None:
+    spec = ReportSpec(columns=[
+        ColumnSpec(label="out", source="v", type="int", required=True),
+    ])
+    with pytest.raises(MappingError, match="required field"):
+        map_records([{"other": "x"}], spec)
+
+
+# ── multiple records ─────────────────────────────────────────────────
+
+def test_coercion_applies_to_all_records() -> None:
+    records = [{"v": "1"}, {"v": "2"}, {"v": "3"}]
+    rows = _map(records, type="int", source="v")
+    assert rows == [{"out": 1}, {"out": 2}, {"out": 3}]
+
+
+def test_coercion_error_reports_correct_record_index() -> None:
+    records = [{"v": "1"}, {"v": "bad"}, {"v": "3"}]
+    with pytest.raises(MappingError, match="record index 1"):
+        _map(records, type="int", source="v")
 
 
 # ── helper ────────────────────────────────────────────────────────────
