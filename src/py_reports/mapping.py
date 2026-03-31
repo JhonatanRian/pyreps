@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from .coercion import coerce_value
 from .contracts import Record, ReportSpec
 from .exceptions import MappingError
 
@@ -22,7 +23,12 @@ def map_records(records: list[Record], spec: ReportSpec) -> list[dict[str, Any]]
                     )
                 value = column.default
 
-            if column.formatter is not None and value is not _MISSING:
+            if column.type is not None and value is not None:
+                value = coerce_value(
+                    value, column.type, source=column.source, record_index=index
+                )
+
+            if column.formatter is not None and value is not None:
                 value = column.formatter(value)
 
             row[column.label] = value

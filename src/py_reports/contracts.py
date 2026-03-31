@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Literal, Mapping, Protocol
 
 OutputFormat = Literal["csv", "xlsx", "pdf"]
+ColumnType = Literal["str", "int", "float", "bool", "date", "datetime"]
 Record = Mapping[str, Any]
 Formatter = Callable[[Any], Any]
 
@@ -16,6 +17,7 @@ class ColumnSpec:
     required: bool = False
     default: Any = None
     formatter: Formatter | None = None
+    type: ColumnType | None = None
 
 
 @dataclass(slots=True, frozen=True)
