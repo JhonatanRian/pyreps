@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any, Literal, Mapping
+
+from .exceptions import ReportError
+
+WidthMode = Literal["manual", "auto", "mixed"]
+_VALID_MODES = {"manual", "auto", "mixed"}
+
+
+@dataclass(slots=True, frozen=True)
+class XlsxColumnOptions:
+    width: float | None = None
+    min_width: float | None = None
+    max_width: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.width is not None and self.width < 0.1:
+            raise ReportError("xlsx column width must be >= 0.1")
+        if self.min_width is not None and self.min_width < 0.1:
+            raise ReportError("xlsx column min_width must be >= 0.1")
+        if self.max_width is not None and self.max_width < 0.1:
+            raise ReportError("xlsx column max_width must be >= 0.1")
+        if (
+            self.min_width is not None
+            and self.max_width is not None
+            and self.min_width > self.max_width
+        ):
+            raise ReportError("xlsx column min_width cannot be greater than max_width")
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> XlsxColumnOptions:
+        return cls(
+            width=_coerce_optional_number(
+                value.get("width"),
+                field_name="metadata['xlsx']['columns'][label]['width']",
+                min_value=0.1,
+            ),
+            min_width=_coerce_optional_number(
+                value.get("min_width"),
+                field_name="metadata['xlsx']['columns'][label]['min_width']",
+                min_value=0.1,
+            ),
+            max_width=_coerce_optional_number(
+                value.get("max_width"),
+                field_name="metadata['xlsx']['columns'][label]['max_width']",
+                min_value=0.1,
+            ),
+        )
+
+
+@dataclass(slots=True, frozen=True)
+class XlsxRenderOptions:
+    width_mode: WidthMode = "mixed"
+    default_width: float = 12.0
+    auto_padding: float = 1.5
+    sheet_name: str = "Report"
+    columns: dict[str, XlsxColumnOptions] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.width_mode not in _VALID_MODES:
+            raise ReportError("metadata['xlsx']['width_mode'] must be manual, auto or mixed")
+        if self.default_width < 0.1:
+            raise ReportError("metadata['xlsx']['default_width'] must be >= 0.1")
+        if self.auto_padding < 0.0:
+            raise ReportError("metadata['xlsx']['auto_padding'] must be >= 0")
+        if not self.sheet_name.strip():
+            raise ReportError("metadata['xlsx']['sheet_name'] must be a non-empty string")
+
+    @classmethod
+    def from_metadata(cls, metadata: Mapping[str, Any]) -> XlsxRenderOptions:
+        raw_xlsx = metadata.get("xlsx", {})
+        if not isinstance(raw_xlsx, Mapping):
+            raise ReportError("metadata['xlsx'] must be a mapping")
+
+        columns_raw = raw_xlsx.get("columns", {})
+        if not isinstance(columns_raw, Mapping):
+            raise ReportError("metadata['xlsx']['columns'] must be a mapping")
+
+        parsed_columns: dict[str, XlsxColumnOptions] = {}
+        for label, options in columns_raw.items():
+            if not isinstance(label, str):
+                raise ReportError("metadata['xlsx']['columns'] keys must be strings")
+            if not isinstance(options, Mapping):
+                raise ReportError("metadata['xlsx']['columns'][label] must be a mapping")
+            parsed_columns[label] = XlsxColumnOptions.from_mapping(options)
+
+        return cls(
+            width_mode=raw_xlsx.get("width_mode", "mixed"),
+            default_width=_coerce_number(
+                raw_xlsx.get("default_width", 12.0),
+                field_name="metadata['xlsx']['default_width']",
+                min_value=0.1,
+            ),
+            auto_padding=_coerce_number(
+                raw_xlsx.get("auto_padding", 1.5),
+                field_name="metadata['xlsx']['auto_padding']",
+                min_value=0.0,
+            ),
+            sheet_name=_coerce_sheet_name(raw_xlsx.get("sheet_name", "Report")),
+            columns=parsed_columns,
+        )
+
+
+def _coerce_optional_number(
+    value: Any, *, field_name: str, min_value: float
+) -> float | None:
+    if value is None:
+        return None
+    return _coerce_number(value, field_name=field_name, min_value=min_value)
+
+
+def _coerce_number(value: Any, *, field_name: str, min_value: float) -> float:
+    if not isinstance(value, (int, float)):
+        raise ReportError(f"{field_name} must be a number")
+    number = float(value)
+    if number < min_value:
+        raise ReportError(f"{field_name} must be >= {min_value}")
+    return number
+
+
+def _coerce_sheet_name(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise ReportError("metadata['xlsx']['sheet_name'] must be a non-empty string")
+    return value.strip()

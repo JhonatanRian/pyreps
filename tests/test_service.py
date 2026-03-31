@@ -58,6 +58,24 @@ def test_generate_csv_from_json_payload(tmp_path: Path) -> None:
     ]
 
 
+def test_generate_csv_uses_delimiter_from_metadata(tmp_path: Path) -> None:
+    data = [{"id": "1", "customer": {"name": "Ana"}}]
+    spec = ReportSpec(
+        columns=[
+            ColumnSpec(label="ID", source="id", required=True),
+            ColumnSpec(label="Cliente", source="customer.name", required=True),
+        ],
+        metadata={"csv": {"delimiter": ";"}},
+    )
+
+    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "delimited.csv")
+
+    assert output.read_text(encoding="utf-8").splitlines() == [
+        "ID;Cliente",
+        "1;Ana",
+    ]
+
+
 def test_non_supported_data_source_requires_explicit_adapter(tmp_path: Path) -> None:
     spec = ReportSpec(columns=[ColumnSpec(label="ID", source="id")])
 
@@ -86,15 +104,15 @@ def test_default_registry_exposes_all_output_formats() -> None:
     assert set(registry.keys()) == {"csv", "xlsx", "pdf"}
 
 
-@pytest.mark.parametrize("output_format", ["xlsx", "pdf"])
-def test_non_implemented_renderers_raise_not_implemented(
-    output_format: str, tmp_path: Path
-) -> None:
+def test_pdf_renderer_generates_valid_file(tmp_path: Path) -> None:
     data = [{"id": "1"}]
-    spec = ReportSpec(output_format=output_format, columns=[ColumnSpec(label="ID", source="id")])
+    spec = ReportSpec(output_format="pdf", columns=[ColumnSpec(label="ID", source="id")])
 
-    with pytest.raises(NotImplementedError):
-        generate_report(data_source=data, spec=spec, destination=tmp_path / f"report.{output_format}")
+    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "report.pdf")
+
+    assert output.exists()
+    assert output.suffix == ".pdf"
+    assert output.read_bytes().startswith(b"%PDF-")
 
 
 def test_missing_renderer_registration_raises_report_error(tmp_path: Path) -> None:

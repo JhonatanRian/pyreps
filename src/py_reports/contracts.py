@@ -22,7 +22,6 @@ class ColumnSpec:
 class ReportSpec:
     columns: list[ColumnSpec]
     output_format: OutputFormat = "csv"
-    delimiter: str = ","
     encoding: str = "utf-8"
     metadata: dict[str, Any] = field(default_factory=dict)
 
