@@ -18,7 +18,7 @@ Biblioteca para gerar relatórios a partir de entradas versáteis com saída em 
 | `CsvRenderer` | ✅ |
 | `XlsxRenderer` | ✅ |
 | `PdfRenderer` | ✅ |
-| `SqlAdapter` | 🔜 |
+| `SqlAdapter` | ✅ |
 
 ### Exemplo rápido
 
@@ -104,6 +104,36 @@ spec = ReportSpec(
 generate_report(data_source=data, spec=spec, destination="reports/vendas.pdf")
 ```
 
+### SQL
+
+Use `SqlAdapter` para gerar relatórios direto de uma query SQL:
+
+```python
+import sqlite3
+from py_reports import ColumnSpec, ReportSpec, SqlAdapter, generate_report
+
+connection = sqlite3.connect("vendas.db")
+
+spec = ReportSpec(
+    output_format="csv",
+    columns=[
+        ColumnSpec(label="ID", source="id", required=True),
+        ColumnSpec(label="Cliente", source="customer_name", required=True),
+        ColumnSpec(label="Total", source="total", required=True),
+    ],
+)
+
+generate_report(
+    data_source=None,
+    spec=spec,
+    destination="reports/vendas.csv",
+    input_adapter=SqlAdapter(
+        query="SELECT id, customer_name, total FROM sales ORDER BY id",
+        connection=connection,
+    ),
+)
+```
+
 ### Usando com JSON
 
 ```python
@@ -119,5 +149,4 @@ generate_report(data_source=json_payload, spec=spec, destination="reports/vendas
 
 ### Próximos passos
 
-- Adicionar `SqlAdapter` (`query + connection`) para banco de dados.
 - Incluir validação mais rica de tipos por coluna.

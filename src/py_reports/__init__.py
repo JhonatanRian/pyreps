@@ -1,4 +1,4 @@
-from .adapters import JsonAdapter, ListDictAdapter
+from .adapters import JsonAdapter, ListDictAdapter, SqlAdapter
 from .contracts import ColumnSpec, ReportSpec
 from .service import generate_report
 
@@ -7,5 +7,6 @@ __all__ = [
     "JsonAdapter",
     "ListDictAdapter",
     "ReportSpec",
+    "SqlAdapter",
     "generate_report",
 ]

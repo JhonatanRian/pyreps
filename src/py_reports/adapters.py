@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -47,3 +48,18 @@ class JsonAdapter(InputAdapter):
                 raise InputAdapterError("json record entries must be mapping objects")
             normalized.append(item)
         return normalized
+
+
+class SqlAdapter(InputAdapter):
+    def __init__(self, *, query: str, connection: sqlite3.Connection) -> None:
+        self._query = query
+        self._connection = connection
+
+    def adapt(self, data_source: Any) -> Iterable[Record]:
+        try:
+            cursor = self._connection.execute(self._query)
+        except sqlite3.Error as exc:
+            raise InputAdapterError(f"SQL query failed: {exc}") from exc
+
+        columns = [description[0] for description in cursor.description]
+        return [dict(zip(columns, row)) for row in cursor.fetchall()]
