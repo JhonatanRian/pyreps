@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import csv
+import shutil
+import zipfile
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from openpyxl import load_workbook
-from openpyxl.utils import get_column_letter
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
@@ -158,16 +158,72 @@ def _apply_column_widths(
     max_lens: dict[str, int],
     options: XlsxRenderOptions,
 ) -> None:
-    workbook = load_workbook(output_path)
-    worksheet = workbook[options.sheet_name]
-
-    for index, label in enumerate(labels, start=1):
-        width = _resolve_width_for_label(
+    """Patch column widths in XLSX via streaming ZIP — constant memory."""
+    widths = [
+        _resolve_width_for_label(
             label=label, max_len=max_lens.get(label, len(label)), options=options
         )
-        worksheet.column_dimensions[get_column_letter(index)].width = width
+        for label in labels
+    ]
 
-    workbook.save(output_path)
+    cols_parts = ['<cols xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">']
+    for i, w in enumerate(widths, start=1):
+        cols_parts.append(
+            f'<col min="{i}" max="{i}" width="{w:.2f}" customWidth="1"/>'
+        )
+    cols_parts.append("</cols>")
+    cols_xml = "".join(cols_parts).encode("utf-8")
+
+    sheet_path = "xl/worksheets/sheet1.xml"
+    tmp_path = output_path.with_suffix(".tmp.xlsx")
+
+    with zipfile.ZipFile(output_path, "r") as zin, \
+         zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            if item.filename == sheet_path:
+                with zin.open(item.filename) as src, zout.open(item.filename, "w") as dst:
+                    _stream_inject_cols(src, dst, cols_xml)
+            else:
+                zout.writestr(item, zin.read(item.filename))
+
+    shutil.move(str(tmp_path), str(output_path))
+
+
+_CHUNK_SIZE = 65_536
+_MARKER = b"<sheetData"
+
+
+def _stream_inject_cols(
+    src, dst, cols_xml: bytes
+) -> None:
+    """Stream sheet XML from *src* to *dst*, injecting *cols_xml* before <sheetData>."""
+    buf = b""
+    injected = False
+
+    while True:
+        chunk = src.read(_CHUNK_SIZE)
+        if not chunk:
+            break
+
+        if injected:
+            dst.write(chunk)
+            continue
+
+        buf += chunk
+        pos = buf.find(_MARKER)
+        if pos != -1:
+            dst.write(buf[:pos])
+            dst.write(cols_xml)
+            dst.write(buf[pos:])
+            injected = True
+            buf = b""
+        elif len(buf) > len(_MARKER):
+            safe = len(buf) - len(_MARKER)
+            dst.write(buf[:safe])
+            buf = buf[safe:]
+
+    if not injected:
+        dst.write(buf)
 
 
 def _resolve_width_for_label(

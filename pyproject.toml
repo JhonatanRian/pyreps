@@ -5,7 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "openpyxl>=3.1.5",
     "orjson>=3.11.7",
     "reportlab>=4.4.10",
     "rustpy-xlsxwriter>=0.0.12",
@@ -13,6 +12,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "openpyxl>=3.1.5",
     "pytest>=8.4.2",
 ]
 
