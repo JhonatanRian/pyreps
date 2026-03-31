@@ -92,9 +92,14 @@ class PdfRenderer(Renderer):
             [str("" if row.get(label) is None else row.get(label)) for label in labels]
             for row in materialized_rows
         ]
-        table_data = [header_row, *data_rows]
+        paragraph_rows = [
+            [Paragraph(cell, styles["Normal"]) for cell in row]
+            for row in data_rows
+        ]
+        table_data = [header_row, *paragraph_rows]
 
-        table = Table(table_data, repeatRows=1)
+        col_widths = _resolve_pdf_column_widths(labels, data_rows, doc.width)
+        table = Table(table_data, colWidths=col_widths, repeatRows=1)
         table.setStyle(
             TableStyle(
                 [
@@ -162,3 +167,45 @@ def _resolve_width_for_label(
         width = min(width, column_options.max_width)
 
     return width
+
+
+def _resolve_pdf_column_widths(
+    labels: list[str],
+    data_rows: list[list[str]],
+    available_width: float,
+) -> list[float]:
+    """Distribute available page width proportionally based on max content length per column.
+
+    Content length is capped to avoid a single column monopolising the page.
+    Each column also gets a minimum width to ensure padding fits.
+    """
+    if not labels:
+        return []
+
+    _MAX_CHARS = 80
+    _MIN_WIDTH_PT = 30.0  # enough to hold padding (8+8) plus a few characters
+
+    char_widths = []
+    for i, label in enumerate(labels):
+        max_chars = len(label)
+        for row in data_rows:
+            if i < len(row):
+                max_chars = max(max_chars, len(row[i]))
+        char_widths.append(min(max(max_chars, 1), _MAX_CHARS))
+
+    total_chars = sum(char_widths)
+    widths = [available_width * (w / total_chars) for w in char_widths]
+
+    # enforce minimum; redistribute surplus proportionally
+    deficit = sum(max(0.0, _MIN_WIDTH_PT - w) for w in widths)
+    if deficit > 0:
+        surplus_indices = [i for i, w in enumerate(widths) if w > _MIN_WIDTH_PT]
+        surplus_total = sum(widths[i] - _MIN_WIDTH_PT for i in surplus_indices)
+        for i, w in enumerate(widths):
+            if w < _MIN_WIDTH_PT:
+                widths[i] = _MIN_WIDTH_PT
+            elif surplus_total > 0:
+                share = (w - _MIN_WIDTH_PT) / surplus_total
+                widths[i] = _MIN_WIDTH_PT + (w - _MIN_WIDTH_PT) - deficit * share
+
+    return widths

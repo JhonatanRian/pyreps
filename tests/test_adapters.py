@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 
 import pytest
 
-from py_reports.adapters import JsonAdapter, ListDictAdapter
+from py_reports.adapters import JsonAdapter, ListDictAdapter, SqlAdapter
 from py_reports.exceptions import InputAdapterError
 
 
@@ -56,3 +57,57 @@ def test_json_adapter_rejects_invalid_payload_type() -> None:
 
     with pytest.raises(InputAdapterError):
         list(adapter.adapt(123))
+
+
+def _make_sql_connection() -> sqlite3.Connection:
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT, value REAL)")
+    conn.executemany(
+        "INSERT INTO items VALUES (?, ?, ?)",
+        [("1", "Alpha", 10.0), ("2", "Beta", 20.5)],
+    )
+    conn.commit()
+    return conn
+
+
+def test_sql_adapter_returns_rows_as_dicts() -> None:
+    adapter = SqlAdapter(
+        query="SELECT id, name, value FROM items ORDER BY id",
+        connection=_make_sql_connection(),
+    )
+
+    result = list(adapter.adapt(None))
+
+    assert result == [
+        {"id": "1", "name": "Alpha", "value": 10.0},
+        {"id": "2", "name": "Beta", "value": 20.5},
+    ]
+
+
+def test_sql_adapter_returns_empty_list_for_no_rows() -> None:
+    adapter = SqlAdapter(
+        query="SELECT id FROM items WHERE id = 'nonexistent'",
+        connection=_make_sql_connection(),
+    )
+
+    result = list(adapter.adapt(None))
+
+    assert result == []
+
+
+def test_sql_adapter_raises_for_invalid_sql() -> None:
+    conn = sqlite3.connect(":memory:")
+    adapter = SqlAdapter(query="SELECT * FROM nonexistent_table", connection=conn)
+
+    with pytest.raises(InputAdapterError):
+        list(adapter.adapt(None))
+
+
+def test_sql_adapter_raises_for_non_select_query() -> None:
+    adapter = SqlAdapter(
+        query="UPDATE items SET name = 'x'",
+        connection=_make_sql_connection(),
+    )
+
+    with pytest.raises(InputAdapterError):
+        list(adapter.adapt(None))

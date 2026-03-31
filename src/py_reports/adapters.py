@@ -61,5 +61,10 @@ class SqlAdapter(InputAdapter):
         except sqlite3.Error as exc:
             raise InputAdapterError(f"SQL query failed: {exc}") from exc
 
+        if cursor.description is None:
+            raise InputAdapterError(
+                "SQL query did not return rows; only SELECT statements are supported"
+            )
+
         columns = [description[0] for description in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
