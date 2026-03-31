@@ -1,0 +1,118 @@
+site_name: py-reports
+site_url: https://py-reports.readthedocs.io/
+site_description: Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust.
+site_author: Jhonatan
+
+repo_name: py-reports
+repo_url: https://github.com/jhonatan/py-reports
+
+copyright: Copyright &copy; 2026 Jhonatan
+
+theme:
+  name: material
+  language: pt-BR
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/file-chart
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Modo escuro
+    - scheme: slate
+      primary: indigo
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Modo claro
+  features:
+    - navigation.instant
+    - navigation.instant.progress
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+
+plugins:
+  - search:
+      lang: pt
+  - minify:
+      minify_html: true
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            heading_level: 2
+            docstring_style: google
+            merge_init_into_class: true
+            show_signature_annotations: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jhonatan/py-reports
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/py-reports/
+
+nav:
+  - Home: index.md
+  - Guia:
+      - Início Rápido: guide/quickstart.md
+      - Tipos Declarativos: guide/types.md
+      - Formatos de Saída: guide/formats.md
+      - Fontes de Dados: guide/datasources.md
+      - Performance: guide/performance.md
+  - API Reference:
+      - generate_report: api/service.md
+      - ColumnSpec & ReportSpec: api/contracts.md
+      - Adapters: api/adapters.md
+      - Renderers: api/renderers.md

@@ -1,65 +1,85 @@
-## py-reports
+<div align="center">
 
-Biblioteca para gerar relatórios a partir de entradas versáteis com saída em `csv`, `xlsx` e `pdf`.
+# py-reports
 
-### Arquitetura
+**Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust.** ⚡
 
-- `InputAdapter` (Strategy/Adapter): normaliza fonte de dados para registros.
-- `ReportSpec` e `ColumnSpec` (DTO/config): definem colunas, labels e mapeamento.
-- Pipeline: `adapt -> map/validate -> render`.
-- `Renderer` (Strategy): cada formato implementa seu renderizador.
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-### Formatos e adapters disponíveis
+[Documentação](https://py-reports.readthedocs.io/) · [PyPI](https://pypi.org/project/py-reports/) · [Issues](https://github.com/jhonatan/py-reports/issues)
 
-| Componente | Status |
-|---|---|
-| `ListDictAdapter` | ✅ |
-| `JsonAdapter` | ✅ |
-| `CsvRenderer` | ✅ |
-| `XlsxRenderer` | ✅ |
-| `PdfRenderer` | ✅ |
-| `SqlAdapter` | ✅ |
+</div>
 
-### Exemplo rápido
+---
+
+## ✨ Destaques
+
+- **🚀 Alta Performance** — Pipeline 100% streaming. CSV e XLSX usam < 1 MB de RAM com 500K+ linhas.
+- **🦀 Powered by Rust** — XLSX via `rustpy-xlsxwriter`, JSON via `orjson`.
+- **📄 3 Formatos** — CSV, XLSX e PDF com uma única API.
+- **🔌 Plugável** — Aceita `list[dict]`, JSON, SQL ou qualquer fonte custom.
+- **🎯 Tipos Declarativos** — Coerção automática para `int`, `float`, `bool`, `date`, `datetime`.
+- **🪶 Leve** — 3 dependências de runtime. Sem pandas, sem numpy.
+
+## Instalação
+
+```bash
+pip install py-reports
+```
+
+## Exemplo Rápido
 
 ```python
 from py_reports import ColumnSpec, ReportSpec, generate_report
 
 data = [
-    {"id": "1", "cliente": {"nome": "Ana"}, "total": 100.5},
-    {"id": "2", "cliente": {"nome": "Bruno"}, "total": 250.0},
+    {"id": 1, "cliente": {"nome": "Ana"}, "total": 100.50},
+    {"id": 2, "cliente": {"nome": "Bruno"}, "total": 250.00},
 ]
 
 spec = ReportSpec(
     output_format="csv",  # ou "xlsx" ou "pdf"
     columns=[
-        ColumnSpec(label="ID", source="id", required=True),
-        ColumnSpec(label="Cliente", source="cliente.nome", required=True),
-        ColumnSpec(label="Total", source="total", formatter=lambda v: f"{v:.2f}"),
+        ColumnSpec(label="ID", source="id", type="int", required=True),
+        ColumnSpec(label="Cliente", source="cliente.nome"),
+        ColumnSpec(label="Total", source="total", type="float",
+                   formatter=lambda v: f"R$ {v:.2f}"),
     ],
 )
 
-generate_report(data_source=data, spec=spec, destination="reports/vendas.csv")
+path = generate_report(data_source=data, spec=spec, destination="vendas.csv")
 ```
 
-### CSV — opções
+## Formatos Suportados
 
-Use `metadata` para configurar o delimitador:
+| Formato | Renderer | Motor | Streaming |
+|---------|----------|-------|-----------|
+| CSV | `CsvRenderer` | `csv` stdlib (C) | ✅ Memória constante |
+| XLSX | `XlsxRenderer` | `rustpy-xlsxwriter` (Rust) | ✅ Memória constante |
+| PDF | `PdfRenderer` | `reportlab` (C) | ⚠️ Materializa (layout) |
+
+## Fontes de Dados
+
+| Fonte | Adapter | Detecção |
+|-------|---------|----------|
+| `list[dict]` / generator | `ListDictAdapter` | Automática |
+| JSON string / bytes | `JsonAdapter` | Automática |
+| `dict` / `Mapping` | `JsonAdapter` | Automática |
+| SQL query | `SqlAdapter` | Explícito |
+| Custom | Implemente `InputAdapter` | Explícito |
+
+## Tipos Declarativos
 
 ```python
-spec = ReportSpec(
-    output_format="csv",
-    columns=[
-        ColumnSpec(label="ID", source="id"),
-        ColumnSpec(label="Cliente", source="cliente.nome"),
-    ],
-    metadata={"csv": {"delimiter": ";"}},
-)
+ColumnSpec(label="Criado", source="created_at", type="date")
+ColumnSpec(label="Ativo", source="active", type="bool")    # "sim" → True
+ColumnSpec(label="Total", source="total", type="float")     # "3.14" → 3.14
 ```
 
-### XLSX — opções de largura de coluna
+Tipos: `str`, `int`, `float`, `bool`, `date`, `datetime`. Opcional — `type=None` mantém pass-through.
 
-O renderer XLSX suporta três modos via `metadata`:
+## XLSX — Largura de Colunas
 
 ```python
 spec = ReportSpec(
@@ -67,86 +87,48 @@ spec = ReportSpec(
     columns=[...],
     metadata={
         "xlsx": {
-            "width_mode": "mixed",   # "manual" | "auto" | "mixed"
-            "default_width": 14.0,
-            "auto_padding": 2.0,
+            "width_mode": "auto",     # "manual" | "auto" | "mixed"
             "sheet_name": "Vendas",
             "columns": {
-                "Descrição": {"min_width": 20.0, "max_width": 50.0},
                 "ID": {"width": 8.0},
+                "Descrição": {"min_width": 20.0, "max_width": 50.0},
             },
         }
     },
 )
 ```
 
-| Modo | Comportamento |
-|---|---|
-| `manual` | Usa `default_width` para todas as colunas (ou a largura explícita por coluna) |
-| `auto` | Calcula a largura com base no maior conteúdo de cada coluna |
-| `mixed` | Usa largura explícita quando definida, senão calcula automaticamente |
-
-### PDF
-
-O renderer PDF gera um arquivo em orientação paisagem (A4) com uma tabela estilizada.
-Basta usar `output_format="pdf"`:
+## SQL
 
 ```python
-spec = ReportSpec(
-    output_format="pdf",
-    columns=[
-        ColumnSpec(label="ID", source="id", required=True),
-        ColumnSpec(label="Cliente", source="nome", required=True),
-        ColumnSpec(label="Total", source="total", formatter=lambda v: f"R$ {v:.2f}"),
-    ],
-)
-
-generate_report(data_source=data, spec=spec, destination="reports/vendas.pdf")
-```
-
-### SQL
-
-Use `SqlAdapter` para gerar relatórios direto de uma query SQL:
-
-```python
-import sqlite3
-from py_reports import ColumnSpec, ReportSpec, SqlAdapter, generate_report
-
-connection = sqlite3.connect("vendas.db")
-
-spec = ReportSpec(
-    output_format="csv",
-    columns=[
-        ColumnSpec(label="ID", source="id", required=True),
-        ColumnSpec(label="Cliente", source="customer_name", required=True),
-        ColumnSpec(label="Total", source="total", required=True),
-    ],
-)
+from py_reports import SqlAdapter
 
 generate_report(
     data_source=None,
     spec=spec,
-    destination="reports/vendas.csv",
+    destination="vendas.csv",
     input_adapter=SqlAdapter(
-        query="SELECT id, customer_name, total FROM sales ORDER BY id",
+        query="SELECT id, name, total FROM sales",
         connection=connection,
     ),
 )
 ```
 
-### Usando com JSON
+## Performance
 
-```python
-json_payload = """
-[
-  {"id":"1","cliente":{"nome":"Ana"},"total":100.5},
-  {"id":"2","cliente":{"nome":"Bruno"},"total":250.0}
-]
-"""
+Benchmark com 6 colunas e tipos declarativos:
 
-generate_report(data_source=json_payload, spec=spec, destination="reports/vendas.csv")
-```
+| Formato | 500K linhas | Peak RAM | rows/s |
+|---------|------------|----------|--------|
+| CSV | 15s | **0.16 MB** | ~33K |
+| XLSX | 24s | **0.62 MB** | ~21K |
 
-### Próximos passos
+> CSV e XLSX mantêm memória constante independente do volume.
 
-- Incluir validação mais rica de tipos por coluna.
+## Documentação
+
+📖 Documentação completa em [py-reports.readthedocs.io](https://py-reports.readthedocs.io/)
+
+## Licença
+
+MIT

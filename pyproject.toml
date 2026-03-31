@@ -1,17 +1,42 @@
 [project]
 name = "py-reports"
 version = "0.1.0"
-description = "Add your description here"
+description = "Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust."
 readme = "README.md"
 requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "Jhonatan" }]
+keywords = ["reports", "csv", "xlsx", "pdf", "export", "streaming", "rust"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Rust",
+    "Topic :: Office/Business",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
 dependencies = [
     "orjson>=3.11.7",
     "reportlab>=4.4.10",
     "rustpy-xlsxwriter>=0.0.12",
 ]
 
+[project.urls]
+Homepage = "https://github.com/jhonatan/py-reports"
+Documentation = "https://py-reports.readthedocs.io/"
+Repository = "https://github.com/jhonatan/py-reports"
+Issues = "https://github.com/jhonatan/py-reports/issues"
+Changelog = "https://github.com/jhonatan/py-reports/blob/master/CHANGELOG.md"
+
 [dependency-groups]
 dev = [
+    "mkdocs-material>=9.7.6",
+    "mkdocs-minify-plugin>=0.8.0",
+    "mkdocstrings[python]>=1.0.3",
     "openpyxl>=3.1.5",
     "pytest>=8.4.2",
 ]
