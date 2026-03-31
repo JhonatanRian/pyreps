@@ -20,7 +20,7 @@ def generate_report(
     renderer_registry: dict[str, Renderer] | None = None,
 ) -> Path:
     adapter = input_adapter or _resolve_adapter(data_source)
-    records = list(adapter.adapt(data_source))
+    records = adapter.adapt(data_source)
     mapped_rows = map_records(records, spec)
 
     registry = renderer_registry or default_renderer_registry()

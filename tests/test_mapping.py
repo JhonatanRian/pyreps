@@ -16,7 +16,7 @@ def test_map_records_maps_nested_paths() -> None:
         ]
     )
 
-    rows = map_records(records, spec)
+    rows = list(map_records(records, spec))
 
     assert rows == [{"ID": "1", "Cliente": "Ana"}]
 
@@ -30,7 +30,7 @@ def test_map_records_applies_default_value() -> None:
         ]
     )
 
-    rows = map_records(records, spec)
+    rows = list(map_records(records, spec))
 
     assert rows == [{"ID": "1", "Status": "Pendente"}]
 
@@ -44,7 +44,7 @@ def test_map_records_applies_formatter() -> None:
         ]
     )
 
-    rows = map_records(records, spec)
+    rows = list(map_records(records, spec))
 
     assert rows == [{"ID": "1", "Total": "10.50"}]
 
@@ -54,4 +54,4 @@ def test_map_records_raises_for_missing_required_field() -> None:
     spec = ReportSpec(columns=[ColumnSpec(label="Cliente", source="customer.name", required=True)])
 
     with pytest.raises(MappingError):
-        map_records(records, spec)
+        list(map_records(records, spec))

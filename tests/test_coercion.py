@@ -213,7 +213,7 @@ def test_type_coercion_runs_before_formatter() -> None:
             formatter=lambda d: d.strftime("%d/%m/%Y"),
         ),
     ])
-    rows = map_records([{"v": "2025-06-15"}], spec)
+    rows = list(map_records([{"v": "2025-06-15"}], spec))
     assert rows == [{"out": "15/06/2025"}]
 
 
@@ -230,7 +230,7 @@ def test_default_value_typed_correctly_passes_through() -> None:
     spec = ReportSpec(columns=[
         ColumnSpec(label="out", source="missing", type="int", default=0),
     ])
-    rows = map_records([{"other": "x"}], spec)
+    rows = list(map_records([{"other": "x"}], spec))
     assert rows == [{"out": 0}]
 
 
@@ -239,7 +239,7 @@ def test_default_string_value_is_coerced_by_type() -> None:
     spec = ReportSpec(columns=[
         ColumnSpec(label="out", source="missing", type="int", default="42"),
     ])
-    rows = map_records([{"other": "x"}], spec)
+    rows = list(map_records([{"other": "x"}], spec))
     assert rows == [{"out": 42}]
 
 
@@ -247,7 +247,7 @@ def test_default_none_skips_coercion() -> None:
     spec = ReportSpec(columns=[
         ColumnSpec(label="out", source="missing", type="int", default=None),
     ])
-    rows = map_records([{"other": "x"}], spec)
+    rows = list(map_records([{"other": "x"}], spec))
     assert rows == [{"out": None}]
 
 
@@ -257,7 +257,7 @@ def test_required_field_with_type_coerces_value() -> None:
     spec = ReportSpec(columns=[
         ColumnSpec(label="out", source="v", type="int", required=True),
     ])
-    rows = map_records([{"v": "10"}], spec)
+    rows = list(map_records([{"v": "10"}], spec))
     assert rows == [{"out": 10}]
 
 
@@ -266,7 +266,7 @@ def test_required_missing_raises_before_coercion() -> None:
         ColumnSpec(label="out", source="v", type="int", required=True),
     ])
     with pytest.raises(MappingError, match="required field"):
-        map_records([{"other": "x"}], spec)
+        list(map_records([{"other": "x"}], spec))
 
 
 # ── multiple records ─────────────────────────────────────────────────
@@ -287,4 +287,4 @@ def test_coercion_error_reports_correct_record_index() -> None:
 
 def _map(records: list[dict], *, type: str | None, source: str) -> list[dict]:
     spec = ReportSpec(columns=[ColumnSpec(label="out", source=source, type=type)])
-    return map_records(records, spec)
+    return list(map_records(records, spec))

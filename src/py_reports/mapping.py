@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from typing import Any, Mapping
 
 from .coercion import coerce_value
@@ -10,8 +11,9 @@ from .exceptions import MappingError
 _MISSING = object()
 
 
-def map_records(records: list[Record], spec: ReportSpec) -> list[dict[str, Any]]:
-    mapped_rows: list[dict[str, Any]] = []
+def map_records(
+    records: Iterable[Record], spec: ReportSpec
+) -> Iterator[dict[str, Any]]:
     for index, record in enumerate(records):
         row: dict[str, Any] = {}
         for column in spec.columns:
@@ -32,8 +34,7 @@ def map_records(records: list[Record], spec: ReportSpec) -> list[dict[str, Any]]
                 value = column.formatter(value)
 
             row[column.label] = value
-        mapped_rows.append(row)
-    return mapped_rows
+        yield row
 
 
 def _extract_by_path(record: Mapping[str, Any], path: str) -> Any:
