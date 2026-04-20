@@ -111,3 +111,35 @@ def test_sql_adapter_raises_for_non_select_query() -> None:
 
     with pytest.raises(InputAdapterError):
         list(adapter.adapt(None))
+
+
+def test_sql_adapter_works_with_generic_dbapi_connection() -> None:
+    """Proves the adapter works with any object that satisfies the DBConnection Protocol."""
+
+    class FakeCursor:
+        description = [("id",), ("name",)]
+
+        def __iter__(self):
+            return iter([("1", "Alpha"), ("2", "Beta")])
+
+    class FakeConnection:
+        def cursor(self):
+            c = FakeCursor()
+            c.execute = lambda query: None
+            return c
+
+    adapter = SqlAdapter(query="SELECT id, name FROM fake", connection=FakeConnection())
+    result = list(adapter.adapt(None))
+    assert result == [{"id": "1", "name": "Alpha"}, {"id": "2", "name": "Beta"}]
+
+
+def test_sql_adapter_wraps_generic_driver_errors() -> None:
+    """Proves non-sqlite3 exceptions are wrapped as InputAdapterError."""
+
+    class FailConnection:
+        def cursor(self):
+            raise RuntimeError("connection refused")
+
+    adapter = SqlAdapter(query="SELECT 1", connection=FailConnection())
+    with pytest.raises(InputAdapterError, match="connection refused"):
+        list(adapter.adapt(None))

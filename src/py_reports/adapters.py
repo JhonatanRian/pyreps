@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import sqlite3
 from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
 import orjson
 
-from .contracts import InputAdapter, Record
+from .contracts import DBConnection, InputAdapter, Record
 from .exceptions import InputAdapterError
 
 
@@ -48,14 +47,15 @@ class JsonAdapter(InputAdapter):
 
 
 class SqlAdapter(InputAdapter):
-    def __init__(self, *, query: str, connection: sqlite3.Connection) -> None:
+    def __init__(self, *, query: str, connection: DBConnection) -> None:
         self._query = query
         self._connection = connection
 
     def adapt(self, data_source: Any) -> Iterable[Record]:
         try:
-            cursor = self._connection.execute(self._query)
-        except sqlite3.Error as exc:
+            cursor = self._connection.cursor()
+            cursor.execute(self._query)
+        except Exception as exc:
             raise InputAdapterError(f"SQL query failed: {exc}") from exc
 
         if cursor.description is None:
@@ -66,3 +66,4 @@ class SqlAdapter(InputAdapter):
         columns = [description[0] for description in cursor.description]
         for row in cursor:
             yield dict(zip(columns, row))
+

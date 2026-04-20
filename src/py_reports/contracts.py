@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Literal, Mapping, Protocol
@@ -26,6 +27,21 @@ class ReportSpec:
     output_format: OutputFormat = "csv"
     encoding: str = "utf-8"
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+class DBCursor(Protocol):
+    """Minimal DB-API 2.0 cursor — only what SqlAdapter consumes."""
+
+    @property
+    def description(self) -> tuple[tuple[str, ...], ...] | None: ...
+
+    def __iter__(self) -> Iterator[tuple[Any, ...]]: ...
+
+
+class DBConnection(Protocol):
+    """Minimal DB-API 2.0 connection — cursor() pattern per PEP 249."""
+
+    def cursor(self) -> DBCursor: ...
 
 
 class InputAdapter(Protocol):
