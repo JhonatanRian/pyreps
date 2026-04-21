@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import csv
+import re
 import shutil
+import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -18,6 +20,16 @@ from .csv_options import CsvRenderOptions
 from .xlsx_options import XlsxColumnOptions, XlsxRenderOptions
 
 
+XLSX_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+
+
+def _prepare_destination(destination: str | Path) -> Path:
+    """Ensure parent directory exists and return Path object."""
+    output_path = Path(destination)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path
+
+
 class CsvRenderer(Renderer):
     def render(
         self,
@@ -25,15 +37,14 @@ class CsvRenderer(Renderer):
         spec: ReportSpec,
         destination: str | Path,
     ) -> Path:
-        output_path = Path(destination)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
+        output_path = _prepare_destination(destination)
         options = CsvRenderOptions.from_metadata(spec.metadata)
-        fieldnames = [column.label for column in spec.columns]
+        labels = [column.label for column in spec.columns]
+
         with output_path.open("w", newline="", encoding=spec.encoding) as handle:
             writer = csv.DictWriter(
                 handle,
-                fieldnames=fieldnames,
+                fieldnames=labels,
                 delimiter=options.delimiter,
                 extrasaction="ignore",
             )
@@ -49,11 +60,9 @@ class XlsxRenderer(Renderer):
         spec: ReportSpec,
         destination: str | Path,
     ) -> Path:
-        output_path = Path(destination)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
-        labels = [column.label for column in spec.columns]
+        output_path = _prepare_destination(destination)
         options = XlsxRenderOptions.from_metadata(spec.metadata)
+        labels = [column.label for column in spec.columns]
 
         tracker = _WidthTracker(rows, labels)
         write_worksheet(tracker, str(output_path), sheet_name=options.sheet_name)
@@ -68,12 +77,11 @@ class PdfRenderer(Renderer):
         spec: ReportSpec,
         destination: str | Path,
     ) -> Path:
-        output_path = Path(destination)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-
+        output_path = _prepare_destination(destination)
         labels = [column.label for column in spec.columns]
 
         styles = getSampleStyleSheet()
+        normal_style = styles["Normal"]
         doc = SimpleDocTemplate(
             str(output_path),
             pagesize=landscape(A4),
@@ -83,24 +91,22 @@ class PdfRenderer(Renderer):
             bottomMargin=1.5 * cm,
         )
 
-        header_row = [Paragraph(f"<b>{label}</b>", styles["Normal"]) for label in labels]
+        header_row = [Paragraph(f"<b>{label}</b>", normal_style) for label in labels]
 
         data_rows: list[list[str]] = []
-        paragraph_rows: list[list[Paragraph]] = []
+        table_rows: list[list[Paragraph]] = [header_row]
         for row in rows:
-            str_cells = [
-                str("" if row.get(label) is None else row.get(label))
-                for label in labels
-            ]
+            str_cells = []
+            para_cells = []
+            for label in labels:
+                val = str(row.get(label) if row.get(label) is not None else "")
+                str_cells.append(val)
+                para_cells.append(Paragraph(val, normal_style))
             data_rows.append(str_cells)
-            paragraph_rows.append(
-                [Paragraph(cell, styles["Normal"]) for cell in str_cells]
-            )
-
-        table_data = [header_row, *paragraph_rows]
+            table_rows.append(para_cells)
 
         col_widths = _resolve_pdf_column_widths(labels, data_rows, doc.width)
-        table = Table(table_data, colWidths=col_widths, repeatRows=1)
+        table = Table(table_rows, colWidths=col_widths, repeatRows=1)
         table.setStyle(
             TableStyle(
                 [
@@ -146,9 +152,9 @@ class _WidthTracker:
                 value = row.get(label)
                 normalized[label] = value
                 if value is not None:
-                    self.max_lens[label] = max(
-                        self.max_lens[label], len(str(value))
-                    )
+                    # Avoid multiple str() calls
+                    val_str = str(value)
+                    self.max_lens[label] = max(self.max_lens[label], len(val_str))
             yield normalized
 
 
@@ -166,22 +172,31 @@ def _apply_column_widths(
         for label in labels
     ]
 
-    cols_parts = ['<cols xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">']
+    # Build <cols> using ElementTree for validation and namespace safety.
+    ET.register_namespace("", XLSX_NS)
+    cols_el = ET.Element(f"{{{XLSX_NS}}}cols")
     for i, w in enumerate(widths, start=1):
-        cols_parts.append(
-            f'<col min="{i}" max="{i}" width="{w:.2f}" customWidth="1"/>'
+        ET.SubElement(
+            cols_el,
+            f"{{{XLSX_NS}}}col",
+            {"min": str(i), "max": str(i), "width": f"{w:.2f}", "customWidth": "1"},
         )
-    cols_parts.append("</cols>")
-    cols_xml = "".join(cols_parts).encode("utf-8")
+
+    # We only want the <cols>...</cols> fragment.
+    # We remove the automatically added 'ns0:' prefix if ElementTree adds it.
+    cols_xml = ET.tostring(cols_el, encoding="utf-8")
 
     sheet_path = "xl/worksheets/sheet1.xml"
     tmp_path = output_path.with_suffix(".tmp.xlsx")
 
-    with zipfile.ZipFile(output_path, "r") as zin, \
-         zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as zout:
+    with zipfile.ZipFile(output_path, "r") as zin, zipfile.ZipFile(
+        tmp_path, "w", compression=zipfile.ZIP_DEFLATED
+    ) as zout:
         for item in zin.infolist():
             if item.filename == sheet_path:
-                with zin.open(item.filename) as src, zout.open(item.filename, "w") as dst:
+                with zin.open(item.filename) as src, zout.open(
+                    item.filename, "w"
+                ) as dst:
                     _stream_inject_cols(src, dst, cols_xml)
             else:
                 zout.writestr(item, zin.read(item.filename))
@@ -190,13 +205,16 @@ def _apply_column_widths(
 
 
 _CHUNK_SIZE = 65_536
-_MARKER = b"<sheetData"
+_SHEET_DATA_RE = re.compile(b"<[^>]*?sheetData")
+_COLS_RE = re.compile(b"<cols.*?</cols>|<cols.*?/>", re.DOTALL)
 
 
-def _stream_inject_cols(
-    src, dst, cols_xml: bytes
-) -> None:
-    """Stream sheet XML from *src* to *dst*, injecting *cols_xml* before <sheetData>."""
+def _stream_inject_cols(src, dst, cols_xml: bytes) -> None:
+    """Stream sheet XML from *src* to *dst*, injecting *cols_xml* safely.
+
+    This replaces any existing <cols> block and ensures our custom widths
+    are injected immediately before the <sheetData> tag.
+    """
     buf = b""
     injected = False
 
@@ -210,19 +228,28 @@ def _stream_inject_cols(
             continue
 
         buf += chunk
-        pos = buf.find(_MARKER)
-        if pos != -1:
-            dst.write(buf[:pos])
+        match = _SHEET_DATA_RE.search(buf)
+        if match:
+            header = buf[: match.start()]
+            rest = buf[match.start() :]
+
+            # Remove any existing <cols> tag from the header before injecting ours.
+            header = _COLS_RE.sub(b"", header)
+
+            dst.write(header)
             dst.write(cols_xml)
-            dst.write(buf[pos:])
+            dst.write(rest)
             injected = True
             buf = b""
-        elif len(buf) > len(_MARKER):
-            safe = len(buf) - len(_MARKER)
-            dst.write(buf[:safe])
-            buf = buf[safe:]
+        elif len(buf) > _CHUNK_SIZE * 2:
+            # If buffer grows too large without finding sheetData, flush part of it.
+            # But keep enough to not split a tag.
+            safe_flush = len(buf) - 1024
+            dst.write(buf[:safe_flush])
+            buf = buf[safe_flush:]
 
     if not injected:
+        # Fallback if sheetData was never found (should not happen in valid XLSX)
         dst.write(buf)
 
 
