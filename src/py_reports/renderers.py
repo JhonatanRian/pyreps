@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import itertools
 import re
 import shutil
 import xml.etree.ElementTree as ET
@@ -12,7 +13,17 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.pdfgen import canvas
+from reportlab.platypus import (
+    BaseDocTemplate,
+    Frame,
+    PageTemplate,
+    Paragraph,
+    SimpleDocTemplate,
+    Spacer,
+    Table,
+    TableStyle,
+)
 from rustpy_xlsxwriter import write_worksheet
 
 from .contracts import OutputFormat, Renderer, ReportSpec
@@ -70,6 +81,34 @@ class XlsxRenderer(Renderer):
         return output_path
 
 
+# Common style commands to avoid duplication between header and body
+_PDF_COMMON_STYLE = [
+    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ("TOPPADDING", (0, 0), (-1, -1), 6),
+    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ("LEFTPADDING", (0, 0), (-1, -1), 8),
+    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+]
+
+
+class StreamingDocTemplate(SimpleDocTemplate):
+    """DocTemplate that handles flowables from a generator to avoid memory bottlenecks."""
+
+    def build_from_generator(self, flowables_generator: Iterable[Any]) -> None:
+        self._calc()
+        self._startBuild(self.filename)
+        self.canv._doctemplate = self
+
+        for flowable in flowables_generator:
+            f_list = [flowable]
+            while f_list:
+                self.clean_hanging()
+                self.handle_flowable(f_list)
+
+        self._endBuild()
+
+
 class PdfRenderer(Renderer):
     def render(
         self,
@@ -79,10 +118,10 @@ class PdfRenderer(Renderer):
     ) -> Path:
         output_path = _prepare_destination(destination)
         labels = [column.label for column in spec.columns]
-
         styles = getSampleStyleSheet()
         normal_style = styles["Normal"]
-        doc = SimpleDocTemplate(
+
+        doc = StreamingDocTemplate(
             str(output_path),
             pagesize=landscape(A4),
             leftMargin=1.5 * cm,
@@ -91,44 +130,96 @@ class PdfRenderer(Renderer):
             bottomMargin=1.5 * cm,
         )
 
-        header_row = [Paragraph(f"<b>{label}</b>", normal_style) for label in labels]
+        # 1. Sample and Width Calculation
+        row_iter = iter(rows)
+        sample = list(itertools.islice(row_iter, 100))
+        all_rows_iter = itertools.chain(sample, row_iter)
 
-        data_rows: list[list[str]] = []
-        table_rows: list[list[Paragraph]] = [header_row]
-        for row in rows:
-            str_cells = []
-            para_cells = []
-            for label in labels:
-                val = str(row.get(label) if row.get(label) is not None else "")
-                str_cells.append(val)
-                para_cells.append(Paragraph(val, normal_style))
-            data_rows.append(str_cells)
-            table_rows.append(para_cells)
+        sample_data = [
+            [_get_cell_value(row, label) for label in labels] for row in sample
+        ]
+        col_widths = _resolve_pdf_column_widths(labels, sample_data, doc.width)
 
-        col_widths = _resolve_pdf_column_widths(labels, data_rows, doc.width)
-        table = Table(table_rows, colWidths=col_widths, repeatRows=1)
-        table.setStyle(
+        # 2. Header Setup
+        header_table = self._create_header_table(labels, col_widths, normal_style)
+        _, header_height = header_table.wrap(doc.width, doc.height)
+
+        # 3. Template and Frame Setup
+        self._setup_pages(doc, header_table, header_height)
+
+        # 4. Body Rendering
+        body_style = TableStyle(
+            _PDF_COMMON_STYLE
+            + [
+                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#F1F5F9")]),
+                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+                ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ]
+        )
+
+        def generate_chunks() -> Iterable[Any]:
+            chunk_size = 200
+            while True:
+                chunk = list(itertools.islice(all_rows_iter, chunk_size))
+                if not chunk:
+                    break
+
+                table_rows = [
+                    [Paragraph(_get_cell_value(row, label), normal_style) for label in labels]
+                    for row in chunk
+                ]
+                table = Table(table_rows, colWidths=col_widths)
+                table.setStyle(body_style)
+                yield table
+
+            yield Spacer(1, 0.5 * cm)
+
+        doc.build_from_generator(generate_chunks())
+        return output_path
+
+    def _create_header_table(self, labels: list[str], col_widths: list[float], style) -> Table:
+        header_table = Table(
+            [[Paragraph(f"<b>{label}</b>", style) for label in labels]],
+            colWidths=col_widths,
+        )
+        header_table.setStyle(
             TableStyle(
-                [
+                _PDF_COMMON_STYLE
+                + [
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563EB")),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                     ("FONTSIZE", (0, 0), (-1, 0), 10),
-                    ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F1F5F9")]),
-                    ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-                    ("FONTSIZE", (0, 1), (-1, -1), 9),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 6),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 8),
                 ]
             )
         )
+        return header_table
 
-        doc.build([table, Spacer(1, 0.5 * cm)])
-        return output_path
+    def _setup_pages(self, doc: StreamingDocTemplate, header_table: Table, header_height: float):
+        def draw_header(canvas: canvas.Canvas, doc: StreamingDocTemplate) -> None:
+            header_table.canv = canvas
+            header_table.drawOn(
+                canvas, doc.leftMargin, doc.height + doc.bottomMargin - header_height
+            )
+
+        frame = Frame(
+            doc.leftMargin,
+            doc.bottomMargin,
+            doc.width,
+            doc.height - header_height,
+            id="normal",
+        )
+        doc.addPageTemplates(
+            [
+                PageTemplate(id="First", frames=[frame], onPage=draw_header),
+                PageTemplate(id="Later", frames=[frame], onPage=draw_header),
+            ]
+        )
+
+
+def _get_cell_value(row: Mapping[str, Any], label: str) -> str:
+    val = row.get(label)
+    return str(val) if val is not None else ""
 
 
 def default_renderer_registry() -> dict[OutputFormat, Renderer]:
