@@ -96,33 +96,41 @@ def _coerce_bool(value: Any) -> bool:
     raise TypeError(f"unsupported type {type(value).__name__} for bool coercion")
 
 
+def _parse_with_cache(
+    text: str,
+    formats: tuple[str, ...],
+    cache_key: str,
+    cache: FormatCache | None,
+) -> datetime:
+    """Try cached format first, then brute-force all formats. Returns raw datetime."""
+    last_fmt = cache.get(cache_key, "") if cache else ""
+    if last_fmt:
+        try:
+            return datetime.strptime(text, last_fmt)
+        except ValueError:
+            pass
+
+    for fmt in formats:
+        if fmt == last_fmt:
+            continue
+        try:
+            result = datetime.strptime(text, fmt)
+            if cache is not None:
+                cache[cache_key] = fmt
+            return result
+        except ValueError:
+            continue
+
+    raise ValueError(f"cannot parse {text!r}")
+
+
 def _coerce_date(value: Any, cache: FormatCache | None = None) -> date:
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
         return value
     if isinstance(value, str):
-        text = value.strip()
-
-        # Try last successful format first (Performance)
-        last_fmt = cache.get("date", "") if cache else ""
-        if last_fmt:
-            try:
-                return datetime.strptime(text, last_fmt).date()
-            except ValueError:
-                pass
-
-        for fmt in _DATE_FORMATS:
-            if fmt == last_fmt:
-                continue
-            try:
-                res = datetime.strptime(text, fmt).date()
-                if cache is not None:
-                    cache["date"] = fmt
-                return res
-            except ValueError:
-                continue
-        raise ValueError(f"cannot parse {value!r} as date")
+        return _parse_with_cache(value.strip(), _DATE_FORMATS, "date", cache).date()
     raise TypeError(f"unsupported type {type(value).__name__} for date coercion")
 
 
@@ -132,27 +140,7 @@ def _coerce_datetime(value: Any, cache: FormatCache | None = None) -> datetime:
     if isinstance(value, date):
         return datetime(value.year, value.month, value.day)
     if isinstance(value, str):
-        text = value.strip()
-
-        # Try last successful format first (Performance)
-        last_fmt = cache.get("datetime", "") if cache else ""
-        if last_fmt:
-            try:
-                return datetime.strptime(text, last_fmt)
-            except ValueError:
-                pass
-
-        for fmt in _DATETIME_FORMATS:
-            if fmt == last_fmt:
-                continue
-            try:
-                res = datetime.strptime(text, fmt)
-                if cache is not None:
-                    cache["datetime"] = fmt
-                return res
-            except ValueError:
-                continue
-        raise ValueError(f"cannot parse {value!r} as datetime")
+        return _parse_with_cache(value.strip(), _DATETIME_FORMATS, "datetime", cache)
     raise TypeError(f"unsupported type {type(value).__name__} for datetime coercion")
 
 

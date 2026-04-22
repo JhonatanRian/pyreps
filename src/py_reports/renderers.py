@@ -13,7 +13,6 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
-    BaseDocTemplate,
     Frame,
     PageTemplate,
     Paragraph,
@@ -30,6 +29,7 @@ from .xlsx_options import XlsxColumnOptions, XlsxRenderOptions
 
 
 XLSX_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+ET.register_namespace("", XLSX_NS)
 
 
 def _prepare_destination(destination: str | Path) -> Path:
@@ -71,17 +71,25 @@ class XlsxRenderer(Renderer):
         output_path = _prepare_destination(destination)
         options = XlsxRenderOptions.from_metadata(spec.metadata)
 
-        needs_override = _needs_width_override(spec.labels, options)
+        needs_override = _needs_width_override(options)
 
         if needs_override:
-            # Track widths manually for per-column overrides + DOM patch.
-            tracker = _WidthTracker(rows, spec.labels)
             use_autofit = options.width_mode in {"auto", "mixed"}
+            if options.columns:
+                # Track widths for per-column overrides (min/max/auto).
+                tracker = _WidthTracker(rows, spec.labels)
+                data = tracker
+            else:
+                # Manual mode without per-column overrides — no tracking needed.
+                tracker = None
+                data = rows
             FastExcel(str(output_path), autofit=use_autofit).sheet(
-                options.sheet_name, tracker
+                options.sheet_name, data
             ).save()
             _dom_patch_column_widths(
-                output_path, spec.labels, tracker.max_lens, options
+                output_path, spec.labels,
+                tracker.max_lens if tracker else {},
+                options,
             )
         else:
             # Pure autofit — let Rust handle everything, no post-processing.
@@ -259,7 +267,7 @@ class _WidthTracker:
             yield row
 
 
-def _needs_width_override(labels: list[str], options: XlsxRenderOptions) -> bool:
+def _needs_width_override(options: XlsxRenderOptions) -> bool:
     """Return True when per-column width overrides require DOM patching."""
     if options.width_mode == "manual":
         return True
@@ -274,7 +282,6 @@ def _build_cols_element(
     options: XlsxRenderOptions,
 ) -> ET.Element:
     """Build a <cols> XML element from resolved widths."""
-    ET.register_namespace("", XLSX_NS)
     cols_el = ET.Element(f"{{{XLSX_NS}}}cols")
     for i, label in enumerate(labels, start=1):
         width = _resolve_width_for_label(
@@ -328,13 +335,14 @@ def _patch_sheet_xml(sheet_xml: bytes, cols_el: ET.Element) -> bytes:
     # Find <sheetData> and insert <cols> right before it.
     sheet_data = root.find("ns:sheetData", ns)
     if sheet_data is not None:
-        idx = list(root).index(sheet_data)
-        root.insert(idx, cols_el)
+        for idx, child in enumerate(root):
+            if child is sheet_data:
+                root.insert(idx, cols_el)
+                break
     else:
         # Fallback: append at end (should not happen in valid XLSX).
         root.append(cols_el)
 
-    ET.register_namespace("", XLSX_NS)
     return ET.tostring(root, xml_declaration=True, encoding="UTF-8")
 
 

@@ -52,6 +52,36 @@ Aceita strings JSON, bytes, dicts e listas. Parsing via **orjson** (Rust, ~6x ma
     generate_report(data_source=payload, spec=spec, destination="out.csv")
     ```
 
+## JSON Streaming — JsonStreamingAdapter
+
+Para arquivos JSON gigantescos (500MB+) ou streams I/O, utilize o `JsonStreamingAdapter`. Ele utiliza a biblioteca **ijson** para ler o arquivo iterativamente, mantendo o consumo de memória constante.
+
+```python
+from py_reports import JsonStreamingAdapter, generate_report
+
+# Lendo de um caminho de arquivo
+generate_report(
+    data_source="gigante.json",
+    spec=spec,
+    destination="out.csv",
+    input_adapter=JsonStreamingAdapter(item_path="item")
+)
+
+# Lendo de um stream binário (ex: file object aberto em 'rb')
+with open("dump.json", "rb") as f:
+    generate_report(
+        data_source=f,
+        spec=spec,
+        destination="out.xlsx",
+        input_adapter=JsonStreamingAdapter()
+    )
+```
+
+!!! info "Caminhos ijson (item_path)"
+    O parâmetro `item_path` define onde os registros estão localizados no JSON:
+    - `"item"`: Para um array na raiz `[{}, {}]`.
+    - `"data.item"`: Para um array dentro de uma chave `{"data": [{}, {}]}`.
+
 ## SQL — SqlAdapter
 
 Para queries SQL, use o `SqlAdapter` explicitamente:

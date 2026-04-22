@@ -132,8 +132,7 @@ def _column_width(path: Path, column_letter: str) -> float:
     return float(width if width is not None else 0.0)
 
 
-_XLSX_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
-_SHEET_PATH = "xl/worksheets/sheet1.xml"
+from py_reports.renderers import XLSX_NS as _XLSX_NS, _SHEET_PATH
 
 
 def _assert_xlsx_xml_integrity(path: Path, *, expect_cols: bool) -> None:

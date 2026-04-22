@@ -10,6 +10,10 @@ Adapters normalizam fontes de dados diversas em iteráveis de registros.
 
 ::: py_reports.adapters.JsonAdapter
 
+## JsonStreamingAdapter
+
+::: py_reports.adapters.JsonStreamingAdapter
+
 ## SqlAdapter
 
 ::: py_reports.adapters.SqlAdapter
