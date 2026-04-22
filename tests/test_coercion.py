@@ -283,6 +283,63 @@ def test_coercion_error_reports_correct_record_index() -> None:
         _map(records, type="int", source="v")
 
 
+# ── format cache isolation (thread-safety) ───────────────────────────
+
+def test_format_cache_does_not_leak_between_reports() -> None:
+    """Each map_records call gets its own cache — no cross-contamination."""
+    iso_records = [{"v": "2025-06-15"}, {"v": "2025-12-25"}]
+    br_records = [{"v": "15/06/2025"}, {"v": "25/12/2025"}]
+
+    spec = ReportSpec(columns=[ColumnSpec(label="out", source="v", type="date")])
+
+    result_iso = list(map_records(iso_records, spec))
+    result_br = list(map_records(br_records, spec))
+
+    assert result_iso == [{"out": date(2025, 6, 15)}, {"out": date(2025, 12, 25)}]
+    assert result_br == [{"out": date(2025, 6, 15)}, {"out": date(2025, 12, 25)}]
+
+
+def test_concurrent_coercion_is_thread_safe() -> None:
+    """Two threads coercing different date formats do not interfere."""
+    import threading
+
+    errors: list[Exception] = []
+
+    def coerce_iso() -> None:
+        try:
+            spec = ReportSpec(columns=[ColumnSpec(label="d", source="v", type="date")])
+            records = [{"v": f"2025-{m:02d}-15"} for m in range(1, 13)] * 100
+            result = list(map_records(records, spec))
+            assert len(result) == 1200
+        except Exception as e:
+            errors.append(e)
+
+    def coerce_br() -> None:
+        try:
+            spec = ReportSpec(columns=[ColumnSpec(label="d", source="v", type="date")])
+            records = [{"v": f"15/{m:02d}/2025"} for m in range(1, 13)] * 100
+            result = list(map_records(records, spec))
+            assert len(result) == 1200
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=coerce_iso), threading.Thread(target=coerce_br)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == [], f"Thread errors: {errors}"
+
+
+def test_coerce_value_without_cache_still_works() -> None:
+    """Direct coerce_value calls without cache parameter remain functional."""
+    from py_reports.coercion import coerce_value
+
+    result = coerce_value("2025-06-15", "date", source="v", record_index=0)
+    assert result == date(2025, 6, 15)
+
+
 # ── helper ────────────────────────────────────────────────────────────
 
 def _map(records: list[dict], *, type: str | None, source: str) -> list[dict]:

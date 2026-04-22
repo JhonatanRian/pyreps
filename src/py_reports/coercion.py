@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 from datetime import date, datetime
 from typing import Any
 
@@ -17,8 +16,19 @@ _DATETIME_FORMATS = (
     "%d/%m/%Y %H:%M:%S",
 )
 
-# State for optimizing date parsing
-_LAST_SUCCESSFUL_FORMAT: dict[str, str] = {"date": "", "datetime": ""}
+FormatCache = dict[str, str]
+"""Per-call cache that stores the last successful date/datetime parse format.
+
+Scoped to a single ``map_records()`` invocation so that concurrent calls
+(threads or async tasks) never share mutable state.
+"""
+
+_CACHED_TYPES = frozenset({"date", "datetime"})
+
+
+def make_format_cache() -> FormatCache:
+    """Create a new format cache scoped to a single mapping run."""
+    return {"date": "", "datetime": ""}
 
 
 def coerce_value(
@@ -27,6 +37,7 @@ def coerce_value(
     *,
     source: str,
     record_index: int,
+    cache: FormatCache | None = None,
 ) -> Any:
     """Coerce *value* to the declared *column_type*.
 
@@ -37,7 +48,10 @@ def coerce_value(
         return None
 
     try:
-        return _COERCERS[column_type](value)
+        coercer = _COERCERS[column_type]
+        if column_type in _CACHED_TYPES:
+            return coercer(value, cache)
+        return coercer(value)
     except (ValueError, TypeError, OverflowError) as exc:
         raise MappingError(
             f"cannot coerce field '{source}' value {value!r} "
@@ -82,16 +96,16 @@ def _coerce_bool(value: Any) -> bool:
     raise TypeError(f"unsupported type {type(value).__name__} for bool coercion")
 
 
-def _coerce_date(value: Any) -> date:
+def _coerce_date(value: Any, cache: FormatCache | None = None) -> date:
     if isinstance(value, datetime):
         return value.date()
     if isinstance(value, date):
         return value
     if isinstance(value, str):
         text = value.strip()
-        
+
         # Try last successful format first (Performance)
-        last_fmt = _LAST_SUCCESSFUL_FORMAT["date"]
+        last_fmt = cache.get("date", "") if cache else ""
         if last_fmt:
             try:
                 return datetime.strptime(text, last_fmt).date()
@@ -103,7 +117,8 @@ def _coerce_date(value: Any) -> date:
                 continue
             try:
                 res = datetime.strptime(text, fmt).date()
-                _LAST_SUCCESSFUL_FORMAT["date"] = fmt
+                if cache is not None:
+                    cache["date"] = fmt
                 return res
             except ValueError:
                 continue
@@ -111,7 +126,7 @@ def _coerce_date(value: Any) -> date:
     raise TypeError(f"unsupported type {type(value).__name__} for date coercion")
 
 
-def _coerce_datetime(value: Any) -> datetime:
+def _coerce_datetime(value: Any, cache: FormatCache | None = None) -> datetime:
     if isinstance(value, datetime):
         return value
     if isinstance(value, date):
@@ -120,7 +135,7 @@ def _coerce_datetime(value: Any) -> datetime:
         text = value.strip()
 
         # Try last successful format first (Performance)
-        last_fmt = _LAST_SUCCESSFUL_FORMAT["datetime"]
+        last_fmt = cache.get("datetime", "") if cache else ""
         if last_fmt:
             try:
                 return datetime.strptime(text, last_fmt)
@@ -132,7 +147,8 @@ def _coerce_datetime(value: Any) -> datetime:
                 continue
             try:
                 res = datetime.strptime(text, fmt)
-                _LAST_SUCCESSFUL_FORMAT["datetime"] = fmt
+                if cache is not None:
+                    cache["datetime"] = fmt
                 return res
             except ValueError:
                 continue
