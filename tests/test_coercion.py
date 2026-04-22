@@ -5,8 +5,14 @@ from datetime import date, datetime
 import pytest
 
 from py_reports import ColumnSpec, ReportSpec
-from py_reports.exceptions import MappingError
+from py_reports.exceptions import CoercionError, MappingError
 from py_reports.mapping import map_records
+
+
+def test_coercion_error_hierarchy() -> None:
+    """Ensure CoercionError is a subclass of MappingError for backward compatibility."""
+    assert issubclass(CoercionError, MappingError)
+
 
 
 # ── str coercion ──────────────────────────────────────────────────────
@@ -59,12 +65,12 @@ def test_coerce_int_from_float_lossless() -> None:
 
 
 def test_coerce_int_from_float_lossy_raises() -> None:
-    with pytest.raises(MappingError, match="cannot coerce"):
+    with pytest.raises(CoercionError, match="cannot coerce"):
         _map([{"v": 5.7}], type="int", source="v")
 
 
 def test_coerce_int_from_invalid_string_raises() -> None:
-    with pytest.raises(MappingError, match="cannot coerce"):
+    with pytest.raises(CoercionError, match="cannot coerce"):
         _map([{"v": "abc"}], type="int", source="v")
 
 
@@ -91,7 +97,7 @@ def test_coerce_float_from_int() -> None:
 
 
 def test_coerce_float_from_invalid_string_raises() -> None:
-    with pytest.raises(MappingError, match="cannot coerce"):
+    with pytest.raises(CoercionError, match="cannot coerce"):
         _map([{"v": "abc"}], type="float", source="v")
 
 
@@ -127,12 +133,12 @@ def test_coerce_bool_from_float() -> None:
 
 
 def test_coerce_bool_invalid_string_raises() -> None:
-    with pytest.raises(MappingError, match="cannot coerce"):
+    with pytest.raises(CoercionError, match="cannot coerce"):
         _map([{"v": "maybe"}], type="bool", source="v")
 
 
 def test_coerce_bool_unsupported_type_raises() -> None:
-    with pytest.raises(MappingError, match="cannot coerce"):
+    with pytest.raises(CoercionError, match="cannot coerce"):
         _map([{"v": [1, 2]}], type="bool", source="v")
 
 
@@ -159,12 +165,12 @@ def test_coerce_date_from_date_object() -> None:
 
 
 def test_coerce_date_invalid_string_raises() -> None:
-    with pytest.raises(MappingError, match="cannot coerce"):
+    with pytest.raises(CoercionError, match="cannot coerce"):
         _map([{"v": "not-a-date"}], type="date", source="v")
 
 
 def test_coerce_date_unsupported_type_raises() -> None:
-    with pytest.raises(MappingError, match="cannot coerce"):
+    with pytest.raises(CoercionError, match="cannot coerce"):
         _map([{"v": 12345}], type="date", source="v")
 
 
@@ -192,12 +198,12 @@ def test_coerce_datetime_from_date_object() -> None:
 
 
 def test_coerce_datetime_invalid_string_raises() -> None:
-    with pytest.raises(MappingError, match="cannot coerce"):
+    with pytest.raises(CoercionError, match="cannot coerce"):
         _map([{"v": "not-a-datetime"}], type="datetime", source="v")
 
 
 def test_coerce_datetime_unsupported_type_raises() -> None:
-    with pytest.raises(MappingError, match="cannot coerce"):
+    with pytest.raises(CoercionError, match="cannot coerce"):
         _map([{"v": 12345}], type="datetime", source="v")
 
 
@@ -279,7 +285,7 @@ def test_coercion_applies_to_all_records() -> None:
 
 def test_coercion_error_reports_correct_record_index() -> None:
     records = [{"v": "1"}, {"v": "bad"}, {"v": "3"}]
-    with pytest.raises(MappingError, match="record index 1"):
+    with pytest.raises(CoercionError, match="record index 1"):
         _map(records, type="int", source="v")
 
 

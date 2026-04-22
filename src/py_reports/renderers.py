@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 import csv
+import functools
 import itertools
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping, TypeVar
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
@@ -25,11 +26,30 @@ from rustpy_xlsxwriter import FastExcel
 
 from .contracts import OutputFormat, Renderer, ReportSpec
 from .csv_options import CsvRenderOptions
+from .exceptions import RenderError
 from .xlsx_options import XlsxColumnOptions, XlsxRenderOptions
 
 
 XLSX_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 ET.register_namespace("", XLSX_NS)
+
+F = TypeVar("F", bound=Callable[..., Any])
+
+
+def wrap_render_error(format_name: str) -> Callable[[F], F]:
+    """Decorator to wrap any exception during rendering into a RenderError."""
+
+    def decorator(func: F) -> F:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except Exception as exc:
+                raise RenderError(f"Failed to render {format_name}: {exc}") from exc
+
+        return wrapper  # type: ignore
+
+    return decorator
 
 
 def _prepare_destination(destination: str | Path) -> Path:
@@ -40,6 +60,7 @@ def _prepare_destination(destination: str | Path) -> Path:
 
 
 class CsvRenderer(Renderer):
+    @wrap_render_error("CSV")
     def render(
         self,
         rows: Iterable[Mapping[str, Any]],
@@ -62,6 +83,7 @@ class CsvRenderer(Renderer):
 
 
 class XlsxRenderer(Renderer):
+    @wrap_render_error("XLSX")
     def render(
         self,
         rows: Iterable[Mapping[str, Any]],
@@ -76,8 +98,12 @@ class XlsxRenderer(Renderer):
         if needs_override:
             use_autofit = options.width_mode in {"auto", "mixed"}
             if options.columns:
-                # Track widths for per-column overrides (min/max/auto).
-                tracker = _WidthTracker(rows, spec.labels)
+                # Skip tracking for columns with explicit widths to save CPU.
+                exclude = {
+                    label for label, col in options.columns.items()
+                    if col.width is not None
+                }
+                tracker = _WidthTracker(rows, spec.labels, exclude_labels=exclude)
                 data = tracker
             else:
                 # Manual mode without per-column overrides — no tracking needed.
@@ -130,6 +156,7 @@ class StreamingDocTemplate(SimpleDocTemplate):
 
 
 class PdfRenderer(Renderer):
+    @wrap_render_error("PDF")
     def render(
         self,
         rows: Iterable[Mapping[str, Any]],
@@ -186,10 +213,19 @@ class PdfRenderer(Renderer):
                 if not chunk:
                     break
 
-                table_rows = [
-                    [Paragraph(_get_cell_value(row, label), normal_style) for label in labels]
-                    for row in chunk
-                ]
+                table_rows = []
+                for row in chunk:
+                    processed_row = []
+                    for label in labels:
+                        val = _get_cell_value(row, label)
+                        # Optimization: Use Paragraph only for long text or multi-line text.
+                        # ReportLab Table handles raw strings much faster.
+                        if len(val) > 30 or "\n" in val:
+                            processed_row.append(Paragraph(val, normal_style))
+                        else:
+                            processed_row.append(val)
+                    table_rows.append(processed_row)
+
                 table = Table(table_rows, colWidths=col_widths)
                 table.setStyle(body_style)
                 yield table
@@ -253,19 +289,32 @@ class _WidthTracker:
 
     __slots__ = ("_rows", "_labels", "max_lens")
 
-    def __init__(self, rows: Iterable[Mapping[str, Any]], labels: list[str]) -> None:
+    def __init__(
+        self,
+        rows: Iterable[Mapping[str, Any]],
+        labels: list[str],
+        exclude_labels: set[str] | None = None,
+    ) -> None:
         self._rows = rows
-        self._labels = labels
+        # Filter labels to only track those that need auto-width.
+        self._labels = [
+            label for label in labels
+            if label not in (exclude_labels or set())
+        ]
         self.max_lens: dict[str, int] = {label: len(label) for label in labels}
 
     def __iter__(self):
+        # Local variable access is faster than attribute access in tight loops.
+        labels = self._labels
+        max_lens = self.max_lens
+
         for row in self._rows:
-            for label in self._labels:
+            for label in labels:
                 value = row.get(label)
                 if value is not None:
-                    # Avoid multiple str() calls
                     val_str = str(value)
-                    self.max_lens[label] = max(self.max_lens[label], len(val_str))
+                    if len(val_str) > max_lens[label]:
+                        max_lens[label] = len(val_str)
             yield row
 
 

@@ -8,3 +8,11 @@ class InputAdapterError(ReportError):
 
 class MappingError(ReportError):
     """Raised when a record cannot be mapped to the report schema."""
+
+
+class CoercionError(MappingError):
+    """Raised when a value cannot be coerced to the declared column type."""
+
+
+class RenderError(ReportError):
+    """Raised when a renderer fails to produce the output file."""

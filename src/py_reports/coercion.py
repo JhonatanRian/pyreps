@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any
 
 from .contracts import ColumnType
-from .exceptions import MappingError
+from .exceptions import CoercionError
 
 _BOOL_TRUTHY = frozenset({"true", "1", "yes", "sim", "on"})
 _BOOL_FALSY = frozenset({"false", "0", "no", "não", "nao", "off"})
@@ -41,7 +41,7 @@ def coerce_value(
 ) -> Any:
     """Coerce *value* to the declared *column_type*.
 
-    Returns the coerced value or raises ``MappingError`` on failure.
+    Returns the coerced value or raises ``CoercionError`` on failure.
     ``None`` values pass through without coercion.
     """
     if value is None:
@@ -53,7 +53,7 @@ def coerce_value(
             return coercer(value, cache)
         return coercer(value)
     except (ValueError, TypeError, OverflowError) as exc:
-        raise MappingError(
+        raise CoercionError(
             f"cannot coerce field '{source}' value {value!r} "
             f"to type '{column_type}' in record index {record_index}"
         ) from exc
@@ -124,24 +124,28 @@ def _parse_with_cache(
     raise ValueError(f"cannot parse {text!r}")
 
 
-def _coerce_date(value: Any, cache: FormatCache | None = None) -> date:
-    if isinstance(value, datetime):
-        return value.date()
-    if isinstance(value, date):
-        return value
-    if isinstance(value, str):
-        return _parse_with_cache(value.strip(), _DATE_FORMATS, "date", cache).date()
-    raise TypeError(f"unsupported type {type(value).__name__} for date coercion")
-
-
-def _coerce_datetime(value: Any, cache: FormatCache | None = None) -> datetime:
+def _coerce_temporal(
+    value: Any,
+    formats: tuple[str, ...],
+    cache_key: str,
+    cache: FormatCache | None,
+) -> datetime:
+    """Consolidated logic for date/datetime coercion."""
     if isinstance(value, datetime):
         return value
     if isinstance(value, date):
         return datetime(value.year, value.month, value.day)
     if isinstance(value, str):
-        return _parse_with_cache(value.strip(), _DATETIME_FORMATS, "datetime", cache)
-    raise TypeError(f"unsupported type {type(value).__name__} for datetime coercion")
+        return _parse_with_cache(value.strip(), formats, cache_key, cache)
+    raise TypeError(f"unsupported type {type(value).__name__} for {cache_key} coercion")
+
+
+def _coerce_date(value: Any, cache: FormatCache | None = None) -> date:
+    return _coerce_temporal(value, _DATE_FORMATS, "date", cache).date()
+
+
+def _coerce_datetime(value: Any, cache: FormatCache | None = None) -> datetime:
+    return _coerce_temporal(value, _DATETIME_FORMATS, "datetime", cache)
 
 
 _COERCERS: dict[ColumnType, Any] = {
