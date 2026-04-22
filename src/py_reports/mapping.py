@@ -18,7 +18,8 @@ def map_records(
     for index, record in enumerate(records):
         row: dict[str, Any] = {}
         for column in spec.columns:
-            value = _extract_by_path(record, column.source)
+            # Use pre-split parts to avoid dot-notation overhead in every row
+            value = _extract_by_parts(record, column._source_parts)
             if value is _MISSING:
                 if column.required:
                     raise MappingError(
@@ -39,10 +40,10 @@ def map_records(
         yield row
 
 
-def _extract_by_path(record: Mapping[str, Any], path: str) -> Any:
-    """Extract a value from a nested mapping using dot notation."""
+def _extract_by_parts(record: Mapping[str, Any], parts: tuple[str, ...]) -> Any:
+    """Extract a value from a nested mapping using pre-split keys."""
     current: Any = record
-    for key in path.split("."):
+    for key in parts:
         if isinstance(current, Mapping) and key in current:
             current = current[key]
         else:

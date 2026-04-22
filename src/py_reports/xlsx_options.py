@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Mapping
 
 from .exceptions import ReportError
+from .utils.options import coerce_number, coerce_optional_number
 
 WidthMode = Literal["manual", "auto", "mixed"]
 _VALID_MODES = {"manual", "auto", "mixed"}
@@ -32,17 +33,17 @@ class XlsxColumnOptions:
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any]) -> XlsxColumnOptions:
         return cls(
-            width=_coerce_optional_number(
+            width=coerce_optional_number(
                 value.get("width"),
                 field_name="metadata['xlsx']['columns'][label]['width']",
                 min_value=0.1,
             ),
-            min_width=_coerce_optional_number(
+            min_width=coerce_optional_number(
                 value.get("min_width"),
                 field_name="metadata['xlsx']['columns'][label]['min_width']",
                 min_value=0.1,
             ),
-            max_width=_coerce_optional_number(
+            max_width=coerce_optional_number(
                 value.get("max_width"),
                 field_name="metadata['xlsx']['columns'][label]['max_width']",
                 min_value=0.1,
@@ -88,12 +89,12 @@ class XlsxRenderOptions:
 
         return cls(
             width_mode=raw_xlsx.get("width_mode", "mixed"),
-            default_width=_coerce_number(
+            default_width=coerce_number(
                 raw_xlsx.get("default_width", 12.0),
                 field_name="metadata['xlsx']['default_width']",
                 min_value=0.1,
             ),
-            auto_padding=_coerce_number(
+            auto_padding=coerce_number(
                 raw_xlsx.get("auto_padding", 1.5),
                 field_name="metadata['xlsx']['auto_padding']",
                 min_value=0.0,
@@ -101,23 +102,6 @@ class XlsxRenderOptions:
             sheet_name=_coerce_sheet_name(raw_xlsx.get("sheet_name", "Report")),
             columns=parsed_columns,
         )
-
-
-def _coerce_optional_number(
-    value: Any, *, field_name: str, min_value: float
-) -> float | None:
-    if value is None:
-        return None
-    return _coerce_number(value, field_name=field_name, min_value=min_value)
-
-
-def _coerce_number(value: Any, *, field_name: str, min_value: float) -> float:
-    if not isinstance(value, (int, float)):
-        raise ReportError(f"{field_name} must be a number")
-    number = float(value)
-    if number < min_value:
-        raise ReportError(f"{field_name} must be >= {min_value}")
-    return number
 
 
 def _coerce_sheet_name(value: Any) -> str:
