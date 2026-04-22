@@ -9,6 +9,8 @@ from openpyxl import load_workbook
 
 from py_reports import ColumnSpec, ReportSpec, generate_report
 from py_reports.exceptions import ReportError
+from py_reports.renderers import XLSX_NS as _XLSX_NS
+from py_reports.renderers import _SHEET_PATH
 
 
 def test_xlsx_manual_width_respected(tmp_path: Path) -> None:
@@ -130,9 +132,6 @@ def _column_width(path: Path, column_letter: str) -> float:
     worksheet = workbook.active
     width = worksheet.column_dimensions[column_letter].width
     return float(width if width is not None else 0.0)
-
-
-from py_reports.renderers import XLSX_NS as _XLSX_NS, _SHEET_PATH
 
 
 def _assert_xlsx_xml_integrity(path: Path, *, expect_cols: bool) -> None:

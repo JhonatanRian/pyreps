@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Any, Literal, Mapping
 
 from .exceptions import ReportError
@@ -8,6 +10,8 @@ from .utils.options import coerce_number, coerce_optional_number
 
 WidthMode = Literal["manual", "auto", "mixed"]
 _VALID_MODES = {"manual", "auto", "mixed"}
+_INVALID_SHEET_CHARS = re.compile(r"[\\/*?\[\]:]")
+_MAX_SHEET_NAME_LEN = 31
 
 
 @dataclass(slots=True, frozen=True)
@@ -31,21 +35,21 @@ class XlsxColumnOptions:
             raise ReportError("xlsx column min_width cannot be greater than max_width")
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any]) -> XlsxColumnOptions:
+    def from_mapping(cls, value: Mapping[str, Any], label: str = "label") -> XlsxColumnOptions:
         return cls(
             width=coerce_optional_number(
                 value.get("width"),
-                field_name="metadata['xlsx']['columns'][label]['width']",
+                field_name=f"metadata['xlsx']['columns']['{label}']['width']",
                 min_value=0.1,
             ),
             min_width=coerce_optional_number(
                 value.get("min_width"),
-                field_name="metadata['xlsx']['columns'][label]['min_width']",
+                field_name=f"metadata['xlsx']['columns']['{label}']['min_width']",
                 min_value=0.1,
             ),
             max_width=coerce_optional_number(
                 value.get("max_width"),
-                field_name="metadata['xlsx']['columns'][label]['max_width']",
+                field_name=f"metadata['xlsx']['columns']['{label}']['max_width']",
                 min_value=0.1,
             ),
         )
@@ -57,7 +61,7 @@ class XlsxRenderOptions:
     default_width: float = 12.0
     auto_padding: float = 1.5
     sheet_name: str = "Report"
-    columns: dict[str, XlsxColumnOptions] = field(default_factory=dict)
+    columns: Mapping[str, XlsxColumnOptions] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.width_mode not in _VALID_MODES:
@@ -66,8 +70,14 @@ class XlsxRenderOptions:
             raise ReportError("metadata['xlsx']['default_width'] must be >= 0.1")
         if self.auto_padding < 0.0:
             raise ReportError("metadata['xlsx']['auto_padding'] must be >= 0")
-        if not self.sheet_name.strip():
-            raise ReportError("metadata['xlsx']['sheet_name'] must be a non-empty string")
+
+        # Normalize and validate sheet_name
+        name = _coerce_sheet_name(self.sheet_name)
+        object.__setattr__(self, "sheet_name", name)
+
+        # Freeze the columns dict to prevent mutation in a frozen dataclass
+        if not isinstance(self.columns, MappingProxyType):
+            object.__setattr__(self, "columns", MappingProxyType(dict(self.columns)))
 
     @classmethod
     def from_metadata(cls, metadata: Mapping[str, Any]) -> XlsxRenderOptions:
@@ -84,8 +94,8 @@ class XlsxRenderOptions:
             if not isinstance(label, str):
                 raise ReportError("metadata['xlsx']['columns'] keys must be strings")
             if not isinstance(options, Mapping):
-                raise ReportError("metadata['xlsx']['columns'][label] must be a mapping")
-            parsed_columns[label] = XlsxColumnOptions.from_mapping(options)
+                raise ReportError(f"metadata['xlsx']['columns']['{label}'] must be a mapping")
+            parsed_columns[label] = XlsxColumnOptions.from_mapping(options, label=label)
 
         return cls(
             width_mode=raw_xlsx.get("width_mode", "mixed"),
@@ -99,7 +109,7 @@ class XlsxRenderOptions:
                 field_name="metadata['xlsx']['auto_padding']",
                 min_value=0.0,
             ),
-            sheet_name=_coerce_sheet_name(raw_xlsx.get("sheet_name", "Report")),
+            sheet_name=raw_xlsx.get("sheet_name", "Report"),
             columns=parsed_columns,
         )
 
@@ -107,4 +117,17 @@ class XlsxRenderOptions:
 def _coerce_sheet_name(value: Any) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ReportError("metadata['xlsx']['sheet_name'] must be a non-empty string")
-    return value.strip()
+
+    name = value.strip()
+    if len(name) > _MAX_SHEET_NAME_LEN:
+        raise ReportError(
+            f"metadata['xlsx']['sheet_name'] exceeds Excel limit of {_MAX_SHEET_NAME_LEN} characters"
+        )
+    if _INVALID_SHEET_CHARS.search(name):
+        raise ReportError(
+            "metadata['xlsx']['sheet_name'] contains invalid Excel characters: \\ / * ? : [ ]"
+        )
+    if name.startswith("'") or name.endswith("'"):
+        raise ReportError("metadata['xlsx']['sheet_name'] cannot start or end with apostrophe")
+
+    return name
