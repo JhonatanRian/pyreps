@@ -50,12 +50,11 @@ class CsvRenderer(Renderer):
     ) -> Path:
         output_path = _prepare_destination(destination)
         options = CsvRenderOptions.from_metadata(spec.metadata)
-        labels = [column.label for column in spec.columns]
 
         with output_path.open("w", newline="", encoding=spec.encoding) as handle:
             writer = csv.DictWriter(
                 handle,
-                fieldnames=labels,
+                fieldnames=spec.labels,
                 delimiter=options.delimiter,
                 extrasaction="ignore",
             )
@@ -73,11 +72,10 @@ class XlsxRenderer(Renderer):
     ) -> Path:
         output_path = _prepare_destination(destination)
         options = XlsxRenderOptions.from_metadata(spec.metadata)
-        labels = [column.label for column in spec.columns]
 
-        tracker = _WidthTracker(rows, labels)
+        tracker = _WidthTracker(rows, spec.labels)
         write_worksheet(tracker, str(output_path), sheet_name=options.sheet_name)
-        _apply_column_widths(output_path, labels, tracker.max_lens, options)
+        _apply_column_widths(output_path, spec.labels, tracker.max_lens, options)
         return output_path
 
 
@@ -117,7 +115,7 @@ class PdfRenderer(Renderer):
         destination: str | Path,
     ) -> Path:
         output_path = _prepare_destination(destination)
-        labels = [column.label for column in spec.columns]
+        labels = spec.labels
         styles = getSampleStyleSheet()
         normal_style = styles["Normal"]
 
@@ -238,15 +236,13 @@ class _WidthTracker:
 
     def __iter__(self):
         for row in self._rows:
-            normalized: dict[str, Any] = {}
             for label in self._labels:
                 value = row.get(label)
-                normalized[label] = value
                 if value is not None:
                     # Avoid multiple str() calls
                     val_str = str(value)
                     self.max_lens[label] = max(self.max_lens[label], len(val_str))
-            yield normalized
+            yield row
 
 
 def _apply_column_widths(

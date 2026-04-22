@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import io
 import json
 import sqlite3
 
 import pytest
 
-from py_reports.adapters import JsonAdapter, ListDictAdapter, SqlAdapter
+from py_reports.adapters import JsonAdapter, JsonStreamingAdapter, ListDictAdapter, SqlAdapter
 from py_reports.exceptions import InputAdapterError
 
 
@@ -143,3 +144,51 @@ def test_sql_adapter_wraps_generic_driver_errors() -> None:
     adapter = SqlAdapter(query="SELECT 1", connection=FailConnection())
     with pytest.raises(InputAdapterError, match="connection refused"):
         list(adapter.adapt(None))
+
+
+def test_json_streaming_adapter_reads_from_path(tmp_path: Any) -> None:
+    path = tmp_path / "test.json"
+    data = [{"id": "1"}, {"id": "2"}]
+    path.write_text(json.dumps(data))
+
+    adapter = JsonStreamingAdapter()
+    result = list(adapter.adapt(str(path)))
+
+    assert result == data
+
+
+def test_json_streaming_adapter_reads_from_binary_stream() -> None:
+    data = [{"id": "1"}, {"id": "2"}]
+    stream = io.BytesIO(json.dumps(data).encode("utf-8"))
+
+    adapter = JsonStreamingAdapter()
+    result = list(adapter.adapt(stream))
+
+    assert result == data
+
+
+def test_json_streaming_adapter_extracts_nested_path() -> None:
+    data = {"records": [{"id": "1"}, {"id": "2"}]}
+    stream = io.BytesIO(json.dumps(data).encode("utf-8"))
+
+    adapter = JsonStreamingAdapter(item_path="records.item")
+    result = list(adapter.adapt(stream))
+
+    assert result == [{"id": "1"}, {"id": "2"}]
+
+
+def test_json_streaming_adapter_raises_for_invalid_structure() -> None:
+    # Array of primitives instead of mappings
+    stream = io.BytesIO(json.dumps([1, 2, 3]).encode("utf-8"))
+
+    adapter = JsonStreamingAdapter()
+    with pytest.raises(InputAdapterError, match="Expected mapping record"):
+        list(adapter.adapt(stream))
+
+
+def test_json_streaming_adapter_raises_for_invalid_json() -> None:
+    stream = io.BytesIO(b"invalid json")
+
+    adapter = JsonStreamingAdapter()
+    with pytest.raises(InputAdapterError, match="JSON streaming parse error"):
+        list(adapter.adapt(stream))

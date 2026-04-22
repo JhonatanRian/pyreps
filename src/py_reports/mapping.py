@@ -38,10 +38,11 @@ def map_records(
 
 
 def _extract_by_path(record: Mapping[str, Any], path: str) -> Any:
+    """Extract a value from a nested mapping using dot notation."""
     current: Any = record
     for key in path.split("."):
         if isinstance(current, Mapping) and key in current:
             current = current[key]
-            continue
-        return _MISSING
+        else:
+            return _MISSING
     return current

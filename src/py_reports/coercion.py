@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from datetime import date, datetime
 from typing import Any
 
@@ -15,6 +16,9 @@ _DATETIME_FORMATS = (
     "%Y-%m-%d %H:%M:%S",
     "%d/%m/%Y %H:%M:%S",
 )
+
+# State for optimizing date parsing
+_LAST_SUCCESSFUL_FORMAT: dict[str, str] = {"date": "", "datetime": ""}
 
 
 def coerce_value(
@@ -48,7 +52,7 @@ def _coerce_str(value: Any) -> str:
 def _coerce_int(value: Any) -> int:
     if isinstance(value, bool):
         return int(value)
-    if isinstance(value, float):
+    if isinstance(value, (float, int)):
         if value != int(value):
             raise ValueError(f"cannot losslessly convert {value!r} to int")
         return int(value)
@@ -85,9 +89,22 @@ def _coerce_date(value: Any) -> date:
         return value
     if isinstance(value, str):
         text = value.strip()
-        for fmt in _DATE_FORMATS:
+        
+        # Try last successful format first (Performance)
+        last_fmt = _LAST_SUCCESSFUL_FORMAT["date"]
+        if last_fmt:
             try:
-                return datetime.strptime(text, fmt).date()
+                return datetime.strptime(text, last_fmt).date()
+            except ValueError:
+                pass
+
+        for fmt in _DATE_FORMATS:
+            if fmt == last_fmt:
+                continue
+            try:
+                res = datetime.strptime(text, fmt).date()
+                _LAST_SUCCESSFUL_FORMAT["date"] = fmt
+                return res
             except ValueError:
                 continue
         raise ValueError(f"cannot parse {value!r} as date")
@@ -101,9 +118,22 @@ def _coerce_datetime(value: Any) -> datetime:
         return datetime(value.year, value.month, value.day)
     if isinstance(value, str):
         text = value.strip()
-        for fmt in _DATETIME_FORMATS:
+
+        # Try last successful format first (Performance)
+        last_fmt = _LAST_SUCCESSFUL_FORMAT["datetime"]
+        if last_fmt:
             try:
-                return datetime.strptime(text, fmt)
+                return datetime.strptime(text, last_fmt)
+            except ValueError:
+                pass
+
+        for fmt in _DATETIME_FORMATS:
+            if fmt == last_fmt:
+                continue
+            try:
+                res = datetime.strptime(text, fmt)
+                _LAST_SUCCESSFUL_FORMAT["datetime"] = fmt
+                return res
             except ValueError:
                 continue
         raise ValueError(f"cannot parse {value!r} as datetime")

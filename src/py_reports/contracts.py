@@ -28,6 +28,10 @@ class ReportSpec:
     encoding: str = "utf-8"
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def labels(self) -> list[str]:
+        return [col.label for col in self.columns]
+
 
 class DBCursor(Protocol):
     """Minimal DB-API 2.0 cursor — only what SqlAdapter consumes."""

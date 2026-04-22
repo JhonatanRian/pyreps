@@ -3,7 +3,9 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator, Mapping
 from typing import Any
 
+import ijson
 import orjson
+from pathlib import Path
 
 from .contracts import DBConnection, InputAdapter, Record
 from .exceptions import InputAdapterError
@@ -21,6 +23,12 @@ class ListDictAdapter(InputAdapter):
 
 
 class JsonAdapter(InputAdapter):
+    """
+    Adapter for JSON data already present in memory.
+    Supports JSON strings, bytes, or pre-parsed dicts/lists.
+    For large files, use JsonStreamingAdapter instead.
+    """
+
     def adapt(self, data_source: Any) -> Iterable[Record]:
         if isinstance(data_source, (str, bytes, bytearray)):
             payload = orjson.loads(data_source)
@@ -44,6 +52,44 @@ class JsonAdapter(InputAdapter):
             if not isinstance(item, Mapping):
                 raise InputAdapterError("json record entries must be mapping objects")
             yield item
+
+
+class JsonStreamingAdapter(InputAdapter):
+    """
+    Adapter for high-performance JSON streaming from files or binary streams.
+    Uses ijson to parse the input iteratively, keeping memory usage constant.
+    """
+
+    def __init__(self, item_path: str = "item") -> None:
+        """
+        Args:
+            item_path: ijson path to the records.
+                       Use "item" for a root-level array [{}, {}].
+                       Use "some_key.item" for a nested array {"some_key": [{}, {}]}.
+        """
+        self.item_path = item_path
+
+    def adapt(self, data_source: Any) -> Iterable[Record]:
+        if isinstance(data_source, (str, Path)):
+            with open(data_source, "rb") as f:
+                yield from self._iterate(f)
+        elif hasattr(data_source, "read"):
+            yield from self._iterate(data_source)
+        else:
+            raise InputAdapterError(
+                "JsonStreamingAdapter expects a file path (str/Path) or a binary file-like object"
+            )
+
+    def _iterate(self, stream: Any) -> Iterable[Record]:
+        try:
+            for item in ijson.items(stream, self.item_path):
+                if not isinstance(item, Mapping):
+                    raise InputAdapterError(
+                        f"Expected mapping record at '{self.item_path}', got {type(item).__name__}"
+                    )
+                yield item
+        except ijson.JSONError as exc:
+            raise InputAdapterError(f"JSON streaming parse error: {exc}") from exc
 
 
 class SqlAdapter(InputAdapter):
