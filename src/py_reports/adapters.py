@@ -32,7 +32,7 @@ class JsonAdapter(InputAdapter):
     def adapt(self, data_source: Any) -> Iterable[Record]:
         if isinstance(data_source, (str, bytes, bytearray)):
             payload = orjson.loads(data_source)
-        elif isinstance(data_source, Mapping) or isinstance(data_source, list):
+        elif isinstance(data_source, (Mapping, list)):
             payload = data_source
         else:
             raise InputAdapterError(

@@ -119,7 +119,28 @@ spec = ReportSpec(
     - **Cabeçalho**: Azul (#2563EB) com texto branco em negrito
     - **Linhas alternadas**: Branco / cinza claro (#F1F5F9)
     - **Largura de colunas**: Proporcional ao conteúdo (automática)
+    - **Streaming por chunks**: Dados processados em blocos de 200 linhas (configurável)
 
-!!! warning "Performance"
-    O PDF **materializa todos os dados** em memória (necessário para layout de tabela).
-    Para datasets muito grandes (>50K linhas), prefira CSV ou XLSX.
+### Opções
+
+| Opção | Tipo | Padrão | Descrição |
+|-------|------|--------|-----------|
+| `chunk_size` | `int` | `200` | Número de linhas por chunk. Menor = menos RAM, maior = menos overhead. |
+
+```python
+spec = ReportSpec(
+    output_format="pdf",
+    columns=[...],
+    metadata={
+        "pdf": {
+            "chunk_size": 100,  # menos memória por chunk
+        }
+    },
+)
+```
+
+!!! warning "Modelo de memória"
+    O PDF usa **streaming por chunks** — cada bloco de `chunk_size` linhas é renderizado
+    e descartado antes de processar o próximo. A memória peak é **O(chunk_size × n_colunas)**,
+    não O(n). Mesmo assim, PDF é ~200x mais lento que CSV/XLSX.
+    Para datasets acima de 50K linhas, prefira CSV ou XLSX.

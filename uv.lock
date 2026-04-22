@@ -689,7 +689,7 @@ dev = [
 requires-dist = [
     { name = "ijson", specifier = ">=3.5.0" },
     { name = "orjson", specifier = ">=3.11.7" },
-    { name = "reportlab", specifier = ">=4.4.10" },
+    { name = "reportlab", specifier = ">=4.4.10,<5" },
     { name = "rustpy-xlsxwriter", specifier = ">=0.4.3" },
 ]
 

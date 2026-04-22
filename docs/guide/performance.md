@@ -35,8 +35,11 @@ Resultados com 6 colunas, tipos declarativos habilitados:
 | PDF | 1K | 6.0s | 16.2 MB | 0.11 MB | 165 |
 | PDF | 10K | 151s | 158 MB | 1.06 MB | 65 |
 
-!!! success "Memória constante"
+!!! success "Memória constante (CSV/XLSX)"
     CSV e XLSX mantêm **< 1 MB** de RAM Python independente do volume de dados.
+
+!!! info "PDF: memória O(chunk_size)"
+    O PDF usa streaming por chunks de 200 linhas (configurável). Peak RAM é proporcional a `chunk_size × n_colunas`, não ao total de registros. Veja [Formatos → PDF](formats.md#pdf) para detalhes.
 
 ## Stack de Performance
 
@@ -66,7 +69,7 @@ generate_report(data_source=stream(), ...)
 
 ### Prefira CSV/XLSX para grandes volumes
 
-PDF materializa todos os dados para calcular o layout da tabela. Para datasets acima de 50K linhas, use CSV ou XLSX.
+O PDF processa dados em chunks de 200 linhas (configurável via `metadata["pdf"]["chunk_size"]`), mantendo memória proporcional ao tamanho do chunk — não ao total de registros. Mesmo assim, a velocidade (~165 rows/s) é muito inferior a CSV/XLSX. Para datasets acima de 50K linhas, prefira CSV ou XLSX.
 
 ### XLSX — modo `manual` para máxima velocidade
 

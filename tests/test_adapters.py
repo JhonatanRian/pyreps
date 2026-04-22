@@ -146,7 +146,7 @@ def test_sql_adapter_wraps_generic_driver_errors() -> None:
         list(adapter.adapt(None))
 
 
-def test_json_streaming_adapter_reads_from_path(tmp_path: Any) -> None:
+def test_json_streaming_adapter_reads_from_path(tmp_path: Path) -> None:
     path = tmp_path / "test.json"
     data = [{"id": "1"}, {"id": "2"}]
     path.write_text(json.dumps(data))

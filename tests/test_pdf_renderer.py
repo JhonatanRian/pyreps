@@ -81,3 +81,13 @@ def test_pdf_creates_parent_directories(tmp_path: Path) -> None:
     output = generate_report(data_source=data, spec=_make_spec(), destination=destination)
 
     assert output.exists()
+
+
+def test_pdf_respects_custom_chunk_size(tmp_path: Path) -> None:
+    """Custom chunk_size via metadata[\"pdf\"][\"chunk_size\"] produces valid PDFs."""
+    data = [{"id": str(i), "name": f"User {i}", "total": i * 1.5} for i in range(1, 21)]
+    spec = _make_spec(metadata={"pdf": {"chunk_size": 5}})
+    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "out.pdf")
+
+    assert output.exists()
+    assert output.read_bytes().startswith(b"%PDF-")

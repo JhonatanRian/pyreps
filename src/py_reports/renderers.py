@@ -168,6 +168,9 @@ class PdfRenderer(Renderer):
         self._setup_pages(doc, header_table, header_height)
 
         # 4. Body Rendering
+        pdf_opts = spec.metadata.get("pdf", {})
+        chunk_size = pdf_opts.get("chunk_size", 200)
+
         body_style = TableStyle(
             _PDF_COMMON_STYLE
             + [
@@ -178,7 +181,6 @@ class PdfRenderer(Renderer):
         )
 
         def generate_chunks() -> Iterable[Any]:
-            chunk_size = 200
             while True:
                 chunk = list(itertools.islice(all_rows_iter, chunk_size))
                 if not chunk:
@@ -197,7 +199,7 @@ class PdfRenderer(Renderer):
         doc.build_from_generator(generate_chunks())
         return output_path
 
-    def _create_header_table(self, labels: list[str], col_widths: list[float], style) -> Table:
+    def _create_header_table(self, labels: list[str], col_widths: list[float], style: ParagraphStyle) -> Table:
         header_table = Table(
             [[Paragraph(f"<b>{label}</b>", style) for label in labels]],
             colWidths=col_widths,
@@ -215,11 +217,11 @@ class PdfRenderer(Renderer):
         )
         return header_table
 
-    def _setup_pages(self, doc: StreamingDocTemplate, header_table: Table, header_height: float):
-        def draw_header(canvas: canvas.Canvas, doc: StreamingDocTemplate) -> None:
-            header_table.canv = canvas
+    def _setup_pages(self, doc: StreamingDocTemplate, header_table: Table, header_height: float) -> None:
+        def draw_header(canv: canvas.Canvas, doc_template: StreamingDocTemplate) -> None:
+            header_table.canv = canv
             header_table.drawOn(
-                canvas, doc.leftMargin, doc.height + doc.bottomMargin - header_height
+                canv, doc_template.leftMargin, doc_template.height + doc_template.bottomMargin - header_height
             )
 
         frame = Frame(
@@ -383,13 +385,12 @@ def _resolve_pdf_column_widths(
     _MAX_CHARS = 80
     _MIN_WIDTH_PT = 30.0  # enough to hold padding (8+8) plus a few characters
 
-    char_widths = []
-    for i, label in enumerate(labels):
-        max_chars = len(label)
-        for row in data_rows:
-            if i < len(row):
-                max_chars = max(max_chars, len(row[i]))
-        char_widths.append(min(max(max_chars, 1), _MAX_CHARS))
+    char_widths = [len(label) for label in labels]
+    for row in data_rows:
+        for i, cell in enumerate(row):
+            if i < len(char_widths):
+                char_widths[i] = max(char_widths[i], len(cell))
+    char_widths = [min(max(w, 1), _MAX_CHARS) for w in char_widths]
 
     total_chars = sum(char_widths)
     widths = [available_width * (w / total_chars) for w in char_widths]

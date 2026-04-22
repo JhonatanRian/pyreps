@@ -96,7 +96,7 @@ graph LR
     style E fill:#e8f5e9
 ```
 
-O pipeline é **100% streaming** — cada registro é processado e descartado sem acumular em memória.
+O pipeline é **100% streaming** para CSV e XLSX — cada registro é processado e descartado sem acumular em memória. O PDF usa streaming por chunks (O(chunk_size)), veja [Performance](guide/performance.md) para detalhes.
 
 ## Links
 
