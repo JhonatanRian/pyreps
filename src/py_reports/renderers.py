@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import csv
 import itertools
-import re
-import shutil
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -24,7 +22,7 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
-from rustpy_xlsxwriter import write_worksheet
+from rustpy_xlsxwriter import FastExcel
 
 from .contracts import OutputFormat, Renderer, ReportSpec
 from .csv_options import CsvRenderOptions
@@ -73,9 +71,25 @@ class XlsxRenderer(Renderer):
         output_path = _prepare_destination(destination)
         options = XlsxRenderOptions.from_metadata(spec.metadata)
 
-        tracker = _WidthTracker(rows, spec.labels)
-        write_worksheet(tracker, str(output_path), sheet_name=options.sheet_name)
-        _apply_column_widths(output_path, spec.labels, tracker.max_lens, options)
+        needs_override = _needs_width_override(spec.labels, options)
+
+        if needs_override:
+            # Track widths manually for per-column overrides + DOM patch.
+            tracker = _WidthTracker(rows, spec.labels)
+            use_autofit = options.width_mode in {"auto", "mixed"}
+            FastExcel(str(output_path), autofit=use_autofit).sheet(
+                options.sheet_name, tracker
+            ).save()
+            _dom_patch_column_widths(
+                output_path, spec.labels, tracker.max_lens, options
+            )
+        else:
+            # Pure autofit — let Rust handle everything, no post-processing.
+            use_autofit = options.width_mode != "manual"
+            FastExcel(str(output_path), autofit=use_autofit).sheet(
+                options.sheet_name, rows
+            ).save()
+
         return output_path
 
 
@@ -245,99 +259,83 @@ class _WidthTracker:
             yield row
 
 
-def _apply_column_widths(
+def _needs_width_override(labels: list[str], options: XlsxRenderOptions) -> bool:
+    """Return True when per-column width overrides require DOM patching."""
+    if options.width_mode == "manual":
+        return True
+    if options.columns:
+        return True
+    return False
+
+
+def _build_cols_element(
+    labels: list[str],
+    max_lens: dict[str, int],
+    options: XlsxRenderOptions,
+) -> ET.Element:
+    """Build a <cols> XML element from resolved widths."""
+    ET.register_namespace("", XLSX_NS)
+    cols_el = ET.Element(f"{{{XLSX_NS}}}cols")
+    for i, label in enumerate(labels, start=1):
+        width = _resolve_width_for_label(
+            label=label, max_len=max_lens.get(label, len(label)), options=options
+        )
+        ET.SubElement(
+            cols_el,
+            f"{{{XLSX_NS}}}col",
+            {"min": str(i), "max": str(i), "width": f"{width:.2f}", "customWidth": "1"},
+        )
+    return cols_el
+
+
+_SHEET_PATH = "xl/worksheets/sheet1.xml"
+
+
+def _dom_patch_column_widths(
     output_path: Path,
     labels: list[str],
     max_lens: dict[str, int],
     options: XlsxRenderOptions,
 ) -> None:
-    """Patch column widths in XLSX via streaming ZIP — constant memory."""
-    widths = [
-        _resolve_width_for_label(
-            label=label, max_len=max_lens.get(label, len(label)), options=options
-        )
-        for label in labels
-    ]
-
-    # Build <cols> using ElementTree for validation and namespace safety.
-    ET.register_namespace("", XLSX_NS)
-    cols_el = ET.Element(f"{{{XLSX_NS}}}cols")
-    for i, w in enumerate(widths, start=1):
-        ET.SubElement(
-            cols_el,
-            f"{{{XLSX_NS}}}col",
-            {"min": str(i), "max": str(i), "width": f"{w:.2f}", "customWidth": "1"},
-        )
-
-    # We only want the <cols>...</cols> fragment.
-    # We remove the automatically added 'ns0:' prefix if ElementTree adds it.
-    cols_xml = ET.tostring(cols_el, encoding="utf-8")
-
-    sheet_path = "xl/worksheets/sheet1.xml"
+    """Patch column widths in XLSX using full DOM parsing — no regex."""
+    cols_el = _build_cols_element(labels, max_lens, options)
     tmp_path = output_path.with_suffix(".tmp.xlsx")
 
     with zipfile.ZipFile(output_path, "r") as zin, zipfile.ZipFile(
         tmp_path, "w", compression=zipfile.ZIP_DEFLATED
     ) as zout:
         for item in zin.infolist():
-            if item.filename == sheet_path:
-                with zin.open(item.filename) as src, zout.open(
-                    item.filename, "w"
-                ) as dst:
-                    _stream_inject_cols(src, dst, cols_xml)
+            if item.filename == _SHEET_PATH:
+                sheet_xml = zin.read(item.filename)
+                patched = _patch_sheet_xml(sheet_xml, cols_el)
+                zout.writestr(item, patched)
             else:
                 zout.writestr(item, zin.read(item.filename))
 
-    shutil.move(str(tmp_path), str(output_path))
+    # Atomic replace: rename tmp over original.
+    tmp_path.replace(output_path)
 
 
-_CHUNK_SIZE = 65_536
-_SHEET_DATA_RE = re.compile(b"<[^>]*?sheetData")
-_COLS_RE = re.compile(b"<cols.*?</cols>|<cols.*?/>", re.DOTALL)
+def _patch_sheet_xml(sheet_xml: bytes, cols_el: ET.Element) -> bytes:
+    """Parse sheet XML, insert/replace <cols> before <sheetData>, return bytes."""
+    ns = {"ns": XLSX_NS}
+    root = ET.fromstring(sheet_xml)
 
+    # Remove any existing <cols> element.
+    for existing_cols in root.findall("ns:cols", ns):
+        root.remove(existing_cols)
 
-def _stream_inject_cols(src, dst, cols_xml: bytes) -> None:
-    """Stream sheet XML from *src* to *dst*, injecting *cols_xml* safely.
+    # Find <sheetData> and insert <cols> right before it.
+    sheet_data = root.find("ns:sheetData", ns)
+    if sheet_data is not None:
+        idx = list(root).index(sheet_data)
+        root.insert(idx, cols_el)
+    else:
+        # Fallback: append at end (should not happen in valid XLSX).
+        root.append(cols_el)
 
-    This replaces any existing <cols> block and ensures our custom widths
-    are injected immediately before the <sheetData> tag.
-    """
-    buf = b""
-    injected = False
-
-    while True:
-        chunk = src.read(_CHUNK_SIZE)
-        if not chunk:
-            break
-
-        if injected:
-            dst.write(chunk)
-            continue
-
-        buf += chunk
-        match = _SHEET_DATA_RE.search(buf)
-        if match:
-            header = buf[: match.start()]
-            rest = buf[match.start() :]
-
-            # Remove any existing <cols> tag from the header before injecting ours.
-            header = _COLS_RE.sub(b"", header)
-
-            dst.write(header)
-            dst.write(cols_xml)
-            dst.write(rest)
-            injected = True
-            buf = b""
-        elif len(buf) > _CHUNK_SIZE * 2:
-            # If buffer grows too large without finding sheetData, flush part of it.
-            # But keep enough to not split a tag.
-            safe_flush = len(buf) - 1024
-            dst.write(buf[:safe_flush])
-            buf = buf[safe_flush:]
-
-    if not injected:
-        # Fallback if sheetData was never found (should not happen in valid XLSX)
-        dst.write(buf)
+    ET.register_namespace("", XLSX_NS)
+    return ET.tostring(root, xml_declaration=True, encoding="UTF-8")
 
 
 def _resolve_width_for_label(

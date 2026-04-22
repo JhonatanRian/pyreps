@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -128,3 +130,68 @@ def _column_width(path: Path, column_letter: str) -> float:
     worksheet = workbook.active
     width = worksheet.column_dimensions[column_letter].width
     return float(width if width is not None else 0.0)
+
+
+_XLSX_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+_SHEET_PATH = "xl/worksheets/sheet1.xml"
+
+
+def _assert_xlsx_xml_integrity(path: Path, *, expect_cols: bool) -> None:
+    """Validate XLSX ZIP structure and XML well-formedness."""
+    with zipfile.ZipFile(path, "r") as zf:
+        assert zf.testzip() is None, "XLSX ZIP is corrupted"
+        assert _SHEET_PATH in zf.namelist(), "sheet1.xml missing from XLSX"
+
+        sheet_xml = zf.read(_SHEET_PATH)
+        root = ET.fromstring(sheet_xml)  # will raise on malformed XML
+
+        ns = {"ns": _XLSX_NS}
+        cols = root.findall("ns:cols", ns)
+        sheet_data = root.find("ns:sheetData", ns)
+
+        if expect_cols:
+            assert len(cols) == 1, f"Expected exactly 1 <cols>, found {len(cols)}"
+            # <cols> must appear before <sheetData>
+            children = list(root)
+            cols_idx = children.index(cols[0])
+            data_idx = children.index(sheet_data)
+            assert cols_idx < data_idx, "<cols> must appear before <sheetData>"
+
+        assert sheet_data is not None, "<sheetData> missing from sheet XML"
+
+
+def test_xlsx_dom_patch_produces_valid_xml(tmp_path: Path) -> None:
+    """XLSX with per-column overrides uses DOM patching — validate XML integrity."""
+    data = [{"id": "1", "customer": {"name": "Ana"}}]
+    spec = ReportSpec(
+        output_format="xlsx",
+        columns=[
+            ColumnSpec(label="ID", source="id", required=True),
+            ColumnSpec(label="Cliente", source="customer.name", required=True),
+        ],
+        metadata={
+            "xlsx": {
+                "width_mode": "mixed",
+                "columns": {"ID": {"width": 20}},
+            }
+        },
+    )
+
+    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "dom.xlsx")
+    _assert_xlsx_xml_integrity(output, expect_cols=True)
+
+
+def test_xlsx_pure_autofit_produces_valid_xml(tmp_path: Path) -> None:
+    """XLSX with pure auto mode (no overrides) — no DOM patch, still valid XML."""
+    data = [{"id": "1", "customer": {"name": "Ana"}}]
+    spec = ReportSpec(
+        output_format="xlsx",
+        columns=[
+            ColumnSpec(label="ID", source="id", required=True),
+            ColumnSpec(label="Cliente", source="customer.name", required=True),
+        ],
+        metadata={"xlsx": {"width_mode": "auto"}},
+    )
+
+    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "autofit.xlsx")
+    _assert_xlsx_xml_integrity(output, expect_cols=False)
