@@ -1,37 +1,53 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Mapping
-from typing import Any
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, BinaryIO
 
 import ijson
 import orjson
-from pathlib import Path
 
 from .contracts import DBConnection, InputAdapter, Record
 from .exceptions import InputAdapterError
 
 
-class ListDictAdapter(InputAdapter):
-    def adapt(self, data_source: Any) -> Iterable[Record]:
-        if not isinstance(data_source, Iterable):
-            raise InputAdapterError("list/dict adapter requires an iterable source")
+def _validate_mappings(records: Iterable[Any]) -> Iterator[Record]:
+    """Helper generator to validate that each record is a Mapping."""
+    for item in records:
+        if not isinstance(item, Mapping):
+            raise InputAdapterError(
+                f"Input record must be a mapping, got {type(item).__name__}"
+            )
+        yield item
 
-        for item in data_source:
-            if not isinstance(item, Mapping):
-                raise InputAdapterError("all records must be mappings (dict-like)")
-            yield item
+
+class ListDictAdapter(InputAdapter):
+    """Adapter for data already in memory as an iterable of dicts."""
+
+    def adapt(self, data_source: Any) -> Iterable[Record]:
+        if not isinstance(data_source, Iterable) or isinstance(
+            data_source, (str, bytes, bytearray)
+        ):
+            raise InputAdapterError("list/dict adapter requires an iterable of mappings")
+
+        return _validate_mappings(data_source)
 
 
 class JsonAdapter(InputAdapter):
     """
     Adapter for JSON data already present in memory.
     Supports JSON strings, bytes, or pre-parsed dicts/lists.
+    If the top-level object has an "items" key containing a list, it will be used as the record source.
     For large files, use JsonStreamingAdapter instead.
     """
 
     def adapt(self, data_source: Any) -> Iterable[Record]:
         if isinstance(data_source, (str, bytes, bytearray)):
-            payload = orjson.loads(data_source)
+            try:
+                payload = orjson.loads(data_source)
+            except Exception as exc:
+                raise InputAdapterError(f"Failed to parse JSON: {exc}") from exc
         elif isinstance(data_source, (Mapping, list)):
             payload = data_source
         else:
@@ -40,39 +56,31 @@ class JsonAdapter(InputAdapter):
             )
 
         if isinstance(payload, Mapping):
-            if "items" in payload and isinstance(payload["items"], list):
-                payload = payload["items"]
-            else:
-                payload = [payload]
+            items = payload.get("items")
+            payload = items if isinstance(items, list) else [payload]
 
         if not isinstance(payload, list):
             raise InputAdapterError("json payload must resolve to a list of records")
 
-        for item in payload:
-            if not isinstance(item, Mapping):
-                raise InputAdapterError("json record entries must be mapping objects")
-            yield item
+        return _validate_mappings(payload)
 
 
+@dataclass(slots=True, frozen=True)
 class JsonStreamingAdapter(InputAdapter):
     """
     Adapter for high-performance JSON streaming from files or binary streams.
     Uses ijson to parse the input iteratively, keeping memory usage constant.
     """
 
-    def __init__(self, item_path: str = "item") -> None:
-        """
-        Args:
-            item_path: ijson path to the records.
-                       Use "item" for a root-level array [{}, {}].
-                       Use "some_key.item" for a nested array {"some_key": [{}, {}]}.
-        """
-        self.item_path = item_path
+    item_path: str = "item"
 
     def adapt(self, data_source: Any) -> Iterable[Record]:
         if isinstance(data_source, (str, Path)):
-            with open(data_source, "rb") as f:
-                yield from self._iterate(f)
+            try:
+                with open(data_source, "rb") as f:
+                    yield from self._iterate(f)
+            except Exception as exc:
+                raise InputAdapterError(f"Streaming JSON failed: {exc}") from exc
         elif hasattr(data_source, "read"):
             yield from self._iterate(data_source)
         else:
@@ -80,36 +88,48 @@ class JsonStreamingAdapter(InputAdapter):
                 "JsonStreamingAdapter expects a file path (str/Path) or a binary file-like object"
             )
 
-    def _iterate(self, stream: Any) -> Iterable[Record]:
+    def _iterate(self, stream: BinaryIO) -> Iterator[Record]:
         try:
-            for item in ijson.items(stream, self.item_path):
-                if not isinstance(item, Mapping):
-                    raise InputAdapterError(
-                        f"Expected mapping record at '{self.item_path}', got {type(item).__name__}"
-                    )
-                yield item
+            yield from _validate_mappings(ijson.items(stream, self.item_path))
         except ijson.JSONError as exc:
             raise InputAdapterError(f"JSON streaming parse error: {exc}") from exc
 
 
+@dataclass(slots=True, frozen=True)
 class SqlAdapter(InputAdapter):
-    def __init__(self, *, query: str, connection: DBConnection) -> None:
-        self._query = query
-        self._connection = connection
+    """Adapter for SQL query results via a DB-API 2.0 connection."""
+
+    query: str
+    connection: DBConnection
+    params: tuple[Any, ...] | dict[str, Any] | None = None
 
     def adapt(self, data_source: Any) -> Iterable[Record]:
         try:
-            cursor = self._connection.cursor()
-            cursor.execute(self._query)
+            cursor = self.connection.cursor()
         except Exception as exc:
-            raise InputAdapterError(f"SQL query failed: {exc}") from exc
+            raise InputAdapterError(f"SQL cursor creation failed: {exc}") from exc
 
-        if cursor.description is None:
-            raise InputAdapterError(
-                "SQL query did not return rows; only SELECT statements are supported"
-            )
+        try:
+            try:
+                if self.params is not None:
+                    cursor.execute(self.query, self.params)
+                else:
+                    cursor.execute(self.query)
+            except Exception as exc:
+                raise InputAdapterError(f"SQL query failed: {exc}") from exc
 
-        columns = [description[0] for description in cursor.description]
-        for row in cursor:
-            yield dict(zip(columns, row))
+            if cursor.description is None:
+                raise InputAdapterError(
+                    "SQL query did not return rows; only SELECT statements are supported"
+                )
 
+            # Optimization: check first row to see if we need manual zipping
+            # This handles drivers that return dicts natively (e.g. DictCursor)
+            columns = [description[0] for description in cursor.description]
+            for row in cursor:
+                if isinstance(row, Mapping):
+                    yield row
+                else:
+                    yield dict(zip(columns, row))
+        finally:
+            cursor.close()

@@ -41,6 +41,14 @@ class DBCursor(Protocol):
 
     def __iter__(self) -> Iterator[tuple[Any, ...]]: ...
 
+    def execute(
+        self,
+        query: str,
+        parameters: tuple[Any, ...] | dict[str, Any] | None = None,
+    ) -> Any: ...
+
+    def close(self) -> None: ...
+
 
 class DBConnection(Protocol):
     """Minimal DB-API 2.0 connection — cursor() pattern per PEP 249."""

@@ -3,11 +3,52 @@ from __future__ import annotations
 import io
 import json
 import sqlite3
+from collections.abc import Iterator, Mapping
+from pathlib import Path
+from typing import Any
 
 import pytest
 
 from py_reports.adapters import JsonAdapter, JsonStreamingAdapter, ListDictAdapter, SqlAdapter
 from py_reports.exceptions import InputAdapterError
+
+
+class MockDBCursor:
+    def __init__(
+        self,
+        description: list[tuple[str, ...]] | None = None,
+        rows: list[tuple[Any, ...]] | None = None,
+    ) -> None:
+        self.description = description
+        self.rows = rows or []
+        self.closed = False
+        self.query: str | None = None
+        self.parameters: tuple[Any, ...] | dict[str, Any] | None = None
+
+    def execute(
+        self,
+        query: str,
+        parameters: tuple[Any, ...] | dict[str, Any] | None = None,
+    ) -> Any:
+        self.query = query
+        self.parameters = parameters
+        return self
+
+    def __iter__(self) -> Iterator[tuple[Any, ...] | Mapping[str, Any]]:
+        return iter(self.rows)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class MockDBConnection:
+    def __init__(self, cursor_obj: MockDBCursor | None = None) -> None:
+        self.cursor_obj = cursor_obj
+
+    def cursor(self) -> MockDBCursor:
+        if self.cursor_obj is None:
+            self.cursor_obj = MockDBCursor()
+        return self.cursor_obj
 
 
 def test_list_dict_adapter_normalizes_dict_records() -> None:
@@ -22,8 +63,14 @@ def test_list_dict_adapter_normalizes_dict_records() -> None:
 def test_list_dict_adapter_rejects_non_mapping_items() -> None:
     adapter = ListDictAdapter()
 
-    with pytest.raises(InputAdapterError):
+    with pytest.raises(InputAdapterError, match="Input record must be a mapping"):
         list(adapter.adapt([{"id": "1"}, 2]))
+
+
+def test_list_dict_adapter_fails_fast_for_strings() -> None:
+    adapter = ListDictAdapter()
+    with pytest.raises(InputAdapterError, match="requires an iterable of mappings"):
+        list(adapter.adapt("invalid"))
 
 
 def test_json_adapter_accepts_json_text_array() -> None:
@@ -56,7 +103,7 @@ def test_json_adapter_wraps_single_object_payload() -> None:
 def test_json_adapter_rejects_invalid_payload_type() -> None:
     adapter = JsonAdapter()
 
-    with pytest.raises(InputAdapterError):
+    with pytest.raises(InputAdapterError, match="json adapter expects"):
         list(adapter.adapt(123))
 
 
@@ -116,22 +163,15 @@ def test_sql_adapter_raises_for_non_select_query() -> None:
 
 def test_sql_adapter_works_with_generic_dbapi_connection() -> None:
     """Proves the adapter works with any object that satisfies the DBConnection Protocol."""
+    cursor = MockDBCursor(
+        description=[("id",), ("name",)], rows=[("1", "Alpha"), ("2", "Beta")]
+    )
+    conn = MockDBConnection(cursor_obj=cursor)
 
-    class FakeCursor:
-        description = [("id",), ("name",)]
-
-        def __iter__(self):
-            return iter([("1", "Alpha"), ("2", "Beta")])
-
-    class FakeConnection:
-        def cursor(self):
-            c = FakeCursor()
-            c.execute = lambda query: None
-            return c
-
-    adapter = SqlAdapter(query="SELECT id, name FROM fake", connection=FakeConnection())
+    adapter = SqlAdapter(query="SELECT id, name FROM fake", connection=conn)
     result = list(adapter.adapt(None))
     assert result == [{"id": "1", "name": "Alpha"}, {"id": "2", "name": "Beta"}]
+    assert cursor.query == "SELECT id, name FROM fake"
 
 
 def test_sql_adapter_wraps_generic_driver_errors() -> None:
@@ -144,6 +184,62 @@ def test_sql_adapter_wraps_generic_driver_errors() -> None:
     adapter = SqlAdapter(query="SELECT 1", connection=FailConnection())
     with pytest.raises(InputAdapterError, match="connection refused"):
         list(adapter.adapt(None))
+
+
+def test_sql_adapter_closes_cursor_on_happy_path() -> None:
+    cursor = MockDBCursor(description=[("id",)], rows=[(1,), (2,)])
+    conn = MockDBConnection(cursor_obj=cursor)
+
+    adapter = SqlAdapter(query="SELECT 1", connection=conn)
+    result = list(adapter.adapt(None))
+    assert result == [{"id": 1}, {"id": 2}]
+    assert cursor.closed
+
+
+def test_sql_adapter_closes_cursor_on_partial_consumption() -> None:
+    cursor = MockDBCursor(description=[("id",)], rows=[(1,), (2,), (3,)])
+    conn = MockDBConnection(cursor_obj=cursor)
+
+    adapter = SqlAdapter(query="SELECT 1", connection=conn)
+    gen = adapter.adapt(None)
+    first = next(gen)
+    assert first == {"id": 1}
+    assert not cursor.closed
+
+    del gen  # force garbage collection / GeneratorExit
+
+    assert cursor.closed
+
+
+def test_sql_adapter_supports_tuple_params() -> None:
+    conn = _make_sql_connection()
+    adapter = SqlAdapter(
+        query="SELECT name FROM items WHERE id = ?", connection=conn, params=("2",)
+    )
+    result = list(adapter.adapt(None))
+    assert result == [{"name": "Beta"}]
+
+
+def test_sql_adapter_supports_dict_params() -> None:
+    conn = _make_sql_connection()
+    adapter = SqlAdapter(
+        query="SELECT name FROM items WHERE id = :id_val",
+        connection=conn,
+        params={"id_val": "1"},
+    )
+    result = list(adapter.adapt(None))
+    assert result == [{"name": "Alpha"}]
+
+
+def test_sql_adapter_detects_native_mapping_rows() -> None:
+    """Proves adapter bypasses manual zipping if rows are already mappings."""
+    rows = [{"id": 1, "name": "A"}, {"id": 2, "name": "B"}]
+    cursor = MockDBCursor(description=[("id",), ("name",)], rows=rows)
+    conn = MockDBConnection(cursor_obj=cursor)
+
+    adapter = SqlAdapter(query="SELECT 1", connection=conn)
+    result = list(adapter.adapt(None))
+    assert result == rows
 
 
 def test_json_streaming_adapter_reads_from_path(tmp_path: Path) -> None:
@@ -182,7 +278,7 @@ def test_json_streaming_adapter_raises_for_invalid_structure() -> None:
     stream = io.BytesIO(json.dumps([1, 2, 3]).encode("utf-8"))
 
     adapter = JsonStreamingAdapter()
-    with pytest.raises(InputAdapterError, match="Expected mapping record"):
+    with pytest.raises(InputAdapterError, match="Input record must be a mapping"):
         list(adapter.adapt(stream))
 
 
