@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any
 
@@ -47,16 +48,32 @@ def coerce_value(
     if value is None:
         return None
 
-    try:
-        coercer = _COERCERS[column_type]
-        if column_type in _CACHED_TYPES:
-            return coercer(value, cache)
-        return coercer(value)
-    except (ValueError, TypeError, OverflowError) as exc:
-        raise CoercionError(
-            f"cannot coerce field '{source}' value {value!r} "
-            f"to type '{column_type}' in record index {record_index}"
-        ) from exc
+    # Reuse the specialized coercer closure to avoid logic duplication
+    coercer_fn = get_coercer_fn(column_type, source, cache or make_format_cache())
+    return coercer_fn(value, record_index)
+
+
+def get_coercer_fn(
+    column_type: ColumnType,
+    source: str,
+    cache: FormatCache,
+) -> Callable[[Any, int], Any]:
+    """Create a pre-bound coercer closure for the given column type and source."""
+    coercer = _COERCERS[column_type]
+    requires_cache = column_type in _CACHED_TYPES
+
+    def coerce_fn(value: Any, record_index: int) -> Any:
+        try:
+            if requires_cache:
+                return coercer(value, cache)
+            return coercer(value)
+        except (ValueError, TypeError, OverflowError) as exc:
+            raise CoercionError(
+                f"cannot coerce field '{source}' value {value!r} "
+                f"to type '{column_type}' in record index {record_index}"
+            ) from exc
+
+    return coerce_fn
 
 
 def _coerce_str(value: Any) -> str:

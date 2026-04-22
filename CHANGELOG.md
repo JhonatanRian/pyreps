@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-04-22
+
+### Changed
+- Refactored `map_records` to use a "Column Processor" pattern with `NamedTuple`, improving code clarity and maintainability.
+- Consolidated coercion error handling by reusing specialized closures.
+
+### Performance
+- Optimized the mapping hot-path by pre-calculating column processors outside the record loop.
+- Implemented a fast-path for flat dictionary keys, using native `dict.get` in C and bypassing function call overhead.
+- Reduced bytecode operations in the main loop by localizing global references and grouping conditional checks.
+
 ## [0.1.0] - 2026-04-22
 
 ### Added

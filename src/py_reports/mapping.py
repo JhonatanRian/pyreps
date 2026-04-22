@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
-from typing import Any, Mapping
+from collections.abc import Callable, Iterable, Iterator
+from typing import Any, Mapping, NamedTuple
 
-from .coercion import coerce_value, make_format_cache
+from .coercion import get_coercer_fn, make_format_cache
 from .contracts import Record, ReportSpec
 from .exceptions import MappingError
 
@@ -11,32 +11,72 @@ from .exceptions import MappingError
 _MISSING = object()
 
 
+class ColumnProcessor(NamedTuple):
+    label: str
+    parts: tuple[str, ...]
+    is_flat: bool
+    flat_key: str | None
+    required: bool
+    default: Any
+    coercer_fn: Callable[[Any, int], Any] | None
+    formatter: Callable[[Any], Any] | None
+    source: str
+
+
 def map_records(
     records: Iterable[Record], spec: ReportSpec
 ) -> Iterator[dict[str, Any]]:
+    # Localize globals for LOAD_FAST access in the hot loop
+    _missing = _MISSING
+    _extract = _extract_by_parts
+    _mapping_error = MappingError
+
     cache = make_format_cache()
+
+    # Pre-calculate processors to avoid nested attribute lookups and function calls
+    processors: list[ColumnProcessor] = []
+    for column in spec.columns:
+        coercer_fn = None
+        if column.type is not None:
+            coercer_fn = get_coercer_fn(column.type, column.source, cache)
+
+        is_flat = len(column._source_parts) == 1
+        processors.append(ColumnProcessor(
+            label=column.label,
+            parts=column._source_parts,
+            is_flat=is_flat,
+            flat_key=column._source_parts[0] if is_flat else None,
+            required=column.required,
+            default=column.default,
+            coercer_fn=coercer_fn,
+            formatter=column.formatter,
+            source=column.source,
+        ))
+
     for index, record in enumerate(records):
         row: dict[str, Any] = {}
-        for column in spec.columns:
-            # Use pre-split parts to avoid dot-notation overhead in every row
-            value = _extract_by_parts(record, column._source_parts)
-            if value is _MISSING:
-                if column.required:
-                    raise MappingError(
-                        f"required field '{column.source}' missing in record index {index}"
+        for p in processors:
+            # Fast-path for flat dictionary keys to bypass function call overhead
+            if p.is_flat:
+                value = record.get(p.flat_key, _missing)  # type: ignore[arg-type]
+            else:
+                value = _extract(record, p.parts)
+
+            if value is _missing:
+                if p.required:
+                    raise _mapping_error(
+                        f"required field '{p.source}' missing in record index {index}"
                     )
-                value = column.default
+                value = p.default
 
-            if column.type is not None and value is not None:
-                value = coerce_value(
-                    value, column.type, source=column.source,
-                    record_index=index, cache=cache,
-                )
+            if value is not None:
+                if p.coercer_fn is not None:
+                    value = p.coercer_fn(value, index)
 
-            if column.formatter is not None and value is not None:
-                value = column.formatter(value)
+                if p.formatter is not None:
+                    value = p.formatter(value)
 
-            row[column.label] = value
+            row[p.label] = value
         yield row
 
 
