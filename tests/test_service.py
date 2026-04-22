@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from py_reports import ColumnSpec, ReportSpec, generate_report
-from py_reports.contracts import InputAdapter
+from py_reports.contracts import InputAdapter, Renderer
 from py_reports.exceptions import InputAdapterError, ReportError
 from py_reports.renderers import default_renderer_registry
 
@@ -127,3 +127,40 @@ def test_missing_renderer_registration_raises_report_error(tmp_path: Path) -> No
             destination=tmp_path / "report.csv",
             renderer_registry=registry_without_csv,
         )
+
+
+def test_generate_report_emits_logs(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level("DEBUG", logger="py_reports")
+    data = [{"id": "1"}]
+    spec = ReportSpec(columns=[ColumnSpec(label="ID", source="id")])
+    destination = tmp_path / "logged.csv"
+
+    generate_report(data_source=data, spec=spec, destination=destination)
+
+    assert "adapter resolved: ListDictAdapter" in caplog.text
+    assert "report generated: format=csv" in caplog.text
+    assert f"destination={destination}" in caplog.text
+
+
+def test_generate_report_removes_partial_file_on_error(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    class CrashingRenderer(Renderer):
+        def render(self, rows, spec, destination):
+            path = Path(destination)
+            path.write_text("partial data")
+            raise RuntimeError("something went wrong")
+
+    data = [{"id": "1"}]
+    spec = ReportSpec(output_format="crash", columns=[ColumnSpec(label="ID", source="id")])
+    destination = tmp_path / "fail.txt"
+    registry = {"crash": CrashingRenderer()}
+
+    with pytest.raises(RuntimeError, match="something went wrong"):
+        generate_report(
+            data_source=data,
+            spec=spec,
+            destination=destination,
+            renderer_registry=registry,
+        )
+
+    assert not destination.exists()
+    assert f"partial file removed: {destination}" in caplog.text
