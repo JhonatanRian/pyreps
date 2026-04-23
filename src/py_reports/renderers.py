@@ -3,10 +3,12 @@ from __future__ import annotations
 import csv
 import functools
 import itertools
+import re
+import shutil
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, TypeVar
+from typing import IO, Any, Callable, Iterable, Mapping, TypeVar
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -114,10 +116,10 @@ class XlsxRenderer(Renderer):
                 # Manual mode without per-column overrides — no tracking needed.
                 tracker = None
                 data = rows
-            FastExcel(str(output_path), autofit=use_autofit).sheet(
+            FastExcel(str(output_path), autofit=False).sheet(
                 options.sheet_name, data
             ).save()
-            _dom_patch_column_widths(
+            _stream_patch_column_widths(
                 output_path, spec.labels,
                 tracker.max_lens if tracker else {},
                 options,
@@ -354,13 +356,13 @@ def _build_cols_element(
 _SHEET_PATH = "xl/worksheets/sheet1.xml"
 
 
-def _dom_patch_column_widths(
+def _stream_patch_column_widths(
     output_path: Path,
     labels: list[str],
     max_lens: dict[str, int],
     options: XlsxRenderOptions,
 ) -> None:
-    """Patch column widths in XLSX using full DOM parsing — no regex."""
+    """Patch column widths in XLSX using streaming — memory efficient."""
     cols_el = _build_cols_element(labels, max_lens, options)
     tmp_path = output_path.with_suffix(".tmp.xlsx")
 
@@ -368,38 +370,71 @@ def _dom_patch_column_widths(
         tmp_path, "w", compression=zipfile.ZIP_DEFLATED
     ) as zout:
         for item in zin.infolist():
-            if item.filename == _SHEET_PATH:
-                sheet_xml = zin.read(item.filename)
-                patched = _patch_sheet_xml(sheet_xml, cols_el)
-                zout.writestr(item, patched)
-            else:
-                zout.writestr(item, zin.read(item.filename))
+            with zin.open(item) as in_file, zout.open(item, "w") as out_file:
+                if item.filename == _SHEET_PATH:
+                    _stream_patch_sheet_xml(in_file, out_file, cols_el)
+                else:
+                    shutil.copyfileobj(in_file, out_file)
 
     # Atomic replace: rename tmp over original.
     tmp_path.replace(output_path)
 
 
-def _patch_sheet_xml(sheet_xml: bytes, cols_el: ET.Element) -> bytes:
-    """Parse sheet XML, insert/replace <cols> before <sheetData>, return bytes."""
-    ns = {"ns": XLSX_NS}
-    root = ET.fromstring(sheet_xml)
+# Pre-compile regexes for performance and robustness
+_SHEET_DATA_RE = re.compile(b"<[^:>]*:?sheetData")
+# Matches <cols> or <x:cols> with any attributes, including self-closing
+_COLS_CLEAN_RE = re.compile(b"<[^:>]*:?cols[^>]*?(/>|.*?</[^:>]*:?cols>)", flags=re.DOTALL)
 
-    # Remove any existing <cols> element.
-    for existing_cols in root.findall("ns:cols", ns):
-        root.remove(existing_cols)
 
-    # Find <sheetData> and insert <cols> right before it.
-    sheet_data = root.find("ns:sheetData", ns)
-    if sheet_data is not None:
-        for idx, child in enumerate(root):
-            if child is sheet_data:
-                root.insert(idx, cols_el)
-                break
-    else:
-        # Fallback: append at end (should not happen in valid XLSX).
-        root.append(cols_el)
+def _stream_patch_sheet_xml(
+    instream: IO[bytes], outstream: IO[bytes], cols_el: ET.Element
+) -> None:
+    """Stream sheet XML, insert/replace <cols> before <sheetData> using a chunked buffer."""
+    # Serialize the <cols> element. We don't want the XML declaration.
+    cols_bytes = ET.tostring(cols_el, encoding="UTF-8")
 
-    return ET.tostring(root, xml_declaration=True, encoding="UTF-8")
+    buffer = bytearray()
+    chunk_size = 65536  # 64KB
+    max_buffer_size = 5 * 1024 * 1024  # 5MB safety limit
+
+    while True:
+        chunk = instream.read(chunk_size)
+        if not chunk:
+            # Fallback: '<sheetData' tag not found. Append before end if possible.
+            outstream.write(buffer)
+            outstream.write(cols_bytes)
+            return
+
+        buffer.extend(chunk)
+
+        if len(buffer) > max_buffer_size:
+            # Safety limit to prevent OOM on malformed XML.
+            outstream.write(buffer)
+            outstream.write(cols_bytes)
+            shutil.copyfileobj(instream, outstream)
+            return
+
+        # Look for the start of the main tag
+        match = _SHEET_DATA_RE.search(buffer)
+        if not match:
+            continue
+
+        # Breakpoint found. Split the file before insertion.
+        split_idx = match.start()
+        head = bytes(buffer[:split_idx])
+        tail = bytes(buffer[split_idx:])
+
+        # Clean any existing <cols> blocks from the head.
+        clean_head = _COLS_CLEAN_RE.sub(b"", head)
+
+        # Write sections in the correct order required by XLSX
+        outstream.write(clean_head)
+        outstream.write(cols_bytes)
+        outstream.write(tail)
+        break
+
+    # Efficiently transfer the rest of the file.
+    shutil.copyfileobj(instream, outstream)
 
 
 def _resolve_width_for_label(
