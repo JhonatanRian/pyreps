@@ -219,3 +219,35 @@ def test_xlsx_tmp_file_cleaned_up_on_error(tmp_path: Path) -> None:
     # Verify tmp file is gone
     tmp_file = dest.with_suffix(".tmp.xlsx")
     assert not tmp_file.exists(), "Temporary file leaked!"
+
+
+def test_xlsx_stream_patch_tag_boundary() -> None:
+    """Stress test: tag <sheetData> split exactly across 64KB chunk boundaries."""
+    import io
+    from py_reports.renderers import _stream_patch_sheet_xml
+
+    # chunk_size in _stream_patch_sheet_xml is 65536
+    chunk_size = 65536
+    
+    # We position "<sheetData>" so "<she" (4 chars) is at the end of the first chunk
+    # and "etData>" is at the start of the second chunk.
+    prefix = b"A" * (chunk_size - 4)
+    xml_content = prefix + b"<sheetData><row/></sheetData>"
+    
+    instream = io.BytesIO(xml_content)
+    outstream = io.BytesIO()
+    cols_el = ET.Element(f"{{{_XLSX_NS}}}cols")
+    ET.SubElement(cols_el, f"{{{_XLSX_NS}}}col", {"min": "1", "max": "1", "width": "20"})
+    
+    # Run the streaming patcher
+    _stream_patch_sheet_xml(instream, outstream, cols_el)
+    
+    result = outstream.getvalue()
+    
+    # Check if patch was successful
+    assert b"<cols" in result, "Patch failed: <cols> tag missing"
+    assert b"<sheetData" in result, "Data corrupted: <sheetData> tag missing"
+    # Ensure relative order
+    assert result.find(b"<cols") < result.find(b"<sheetData"), "<cols> must be before <sheetData>"
+    # Ensure content was preserved
+    assert b"<row/>" in result

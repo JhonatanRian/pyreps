@@ -474,8 +474,11 @@ def _stream_patch_sheet_xml(
             shutil.copyfileobj(instream, outstream)
             return
 
-        # Look for the start of the main tag
-        match = _SHEET_DATA_RE.search(buffer)
+        # Look for the start of the main tag in the current chunk + a safety overlap
+        # from the end of the previous buffer, to avoid O(N^2) searches and
+        # handle the "boundary bug" where the tag is split between chunks.
+        search_start = max(0, len(buffer) - len(chunk) - 20)
+        match = _SHEET_DATA_RE.search(buffer, search_start)
         if not match:
             continue
 
