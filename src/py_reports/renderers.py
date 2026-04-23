@@ -7,7 +7,7 @@ import re
 import shutil
 import xml.etree.ElementTree as ET
 import zipfile
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from operator import itemgetter
 from pathlib import Path
 from typing import IO, Any, Callable, TypeVar
@@ -281,7 +281,7 @@ class PdfRenderer(Renderer):
         doc.build_from_generator(generate_chunks())
         return output_path
 
-    def _create_header_table(self, labels: list[str], col_widths: list[float], style: ParagraphStyle) -> Table:
+    def _create_header_table(self, labels: Sequence[str], col_widths: list[float], style: ParagraphStyle) -> Table:
         header_table = Table(
             [[Paragraph(f"<b>{label}</b>", style) for label in labels]],
             colWidths=col_widths,
@@ -338,7 +338,7 @@ class _WidthTracker:
     def __init__(
         self,
         rows: Iterable[Mapping[str, Any]],
-        labels: list[str],
+        labels: Sequence[str],
         exclude_labels: set[str] | None = None,
     ) -> None:
         self._rows = rows
@@ -392,7 +392,7 @@ def _needs_width_override(options: XlsxRenderOptions) -> bool:
 
 
 def _build_cols_element(
-    labels: list[str],
+    labels: Sequence[str],
     max_lens: dict[str, int],
     options: XlsxRenderOptions,
 ) -> ET.Element:
@@ -415,7 +415,7 @@ _SHEET_PATH = "xl/worksheets/sheet1.xml"
 
 def _stream_patch_column_widths(
     output_path: Path,
-    labels: list[str],
+    labels: Sequence[str],
     max_lens: dict[str, int],
     options: XlsxRenderOptions,
 ) -> None:
@@ -518,7 +518,7 @@ def _resolve_width_for_label(
 
 
 def _resolve_pdf_column_widths(
-    labels: list[str],
+    labels: Sequence[str],
     data_rows: list[list[str]],
     available_width: float,
 ) -> list[float]:

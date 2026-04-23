@@ -44,21 +44,23 @@ class ReportSpec:
     Complete specification for a report generation.
 
     Attributes:
-        columns: List of ColumnSpec defining the report schema.
+        columns: Tuple of ColumnSpec defining the report schema.
         output_format: Target format. Allowed: 'csv', 'xlsx', 'pdf'.
         encoding: Text encoding for the output file (default: 'utf-8').
         metadata: Optional dictionary for format-specific options (keys: 'csv', 'xlsx', 'pdf').
     """
 
-    columns: list[ColumnSpec]
+    columns: tuple[ColumnSpec, ...]
     output_format: OutputFormat = "csv"
     encoding: str = "utf-8"
     metadata: dict[str, Any] = field(default_factory=dict)
-    labels: list[str] = field(init=False)
+    labels: tuple[str, ...] = field(init=False)
 
     def __post_init__(self) -> None:
-        # Cache labels once to avoid list comprehension on every access
-        object.__setattr__(self, "labels", [col.label for col in self.columns])
+        # Force columns to be a tuple for strict immutability
+        object.__setattr__(self, "columns", tuple(self.columns))
+        # Cache labels once as an immutable tuple
+        object.__setattr__(self, "labels", tuple(col.label for col in self.columns))
 
 
 class DBCursor(Protocol):
