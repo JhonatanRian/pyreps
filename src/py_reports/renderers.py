@@ -7,9 +7,10 @@ import re
 import shutil
 import xml.etree.ElementTree as ET
 import zipfile
+from collections.abc import Iterable, Iterator, Mapping
 from operator import itemgetter
 from pathlib import Path
-from typing import IO, Any, Callable, Iterable, Iterator, Mapping, TypeVar
+from typing import IO, Any, Callable, TypeVar
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -32,6 +33,7 @@ from .csv_options import CsvRenderOptions
 from .exceptions import RenderError
 from .pdf_options import PdfRenderOptions
 from .xlsx_options import XlsxColumnOptions, XlsxRenderOptions
+from .utils import atomic_write
 from .utils.options import clamp
 
 # Common colors and style constants
@@ -404,20 +406,23 @@ def _stream_patch_column_widths(
 ) -> None:
     """Patch column widths in XLSX using streaming — memory efficient."""
     cols_el = _build_cols_element(labels, max_lens, options)
-    tmp_path = output_path.with_suffix(".tmp.xlsx")
 
-    with zipfile.ZipFile(output_path, "r") as zin, zipfile.ZipFile(
-        tmp_path, "w", compression=zipfile.ZIP_DEFLATED
-    ) as zout:
-        for item in zin.infolist():
-            with zin.open(item) as in_file, zout.open(item, "w") as out_file:
+    with atomic_write(output_path) as tmp_path:
+        _rebuild_xlsx_archive(output_path, tmp_path, cols_el)
+
+
+def _rebuild_xlsx_archive(src: Path, dst: Path, cols_el: ET.Element) -> None:
+    """Read source XLSX and write to destination, patching the worksheet XML in transit."""
+    with zipfile.ZipFile(src, "r") as reader, zipfile.ZipFile(
+        dst, "w", compression=zipfile.ZIP_DEFLATED
+    ) as writer:
+        for item in reader.infolist():
+            with reader.open(item) as in_file, writer.open(item, "w") as out_file:
                 if item.filename == _SHEET_PATH:
                     _stream_patch_sheet_xml(in_file, out_file, cols_el)
                 else:
-                    shutil.copyfileobj(in_file, out_file)
-
-    # Atomic replace: rename tmp over original.
-    tmp_path.replace(output_path)
+                    # Optimization: Use a larger buffer (1MB) to reduce syscalls.
+                    shutil.copyfileobj(in_file, out_file, length=1024 * 1024)
 
 
 # Pre-compile regexes for performance and robustness

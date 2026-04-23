@@ -3,12 +3,13 @@ from __future__ import annotations
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 import pytest
 from openpyxl import load_workbook
 
 from py_reports import ColumnSpec, ReportSpec, generate_report
-from py_reports.exceptions import ReportError
+from py_reports.exceptions import RenderError, ReportError
 from py_reports.renderers import XLSX_NS as _XLSX_NS
 from py_reports.renderers import _SHEET_PATH
 
@@ -193,3 +194,28 @@ def test_xlsx_pure_autofit_produces_valid_xml(tmp_path: Path) -> None:
 
     output = generate_report(data_source=data, spec=spec, destination=tmp_path / "autofit.xlsx")
     _assert_xlsx_xml_integrity(output, expect_cols=False)
+
+
+def test_xlsx_tmp_file_cleaned_up_on_error(tmp_path: Path) -> None:
+    """Ensure .tmp.xlsx is deleted if an error occurs during streaming patch."""
+    data = [{"id": "1"}]
+    spec = ReportSpec(
+        output_format="xlsx",
+        columns=[ColumnSpec(label="ID", source="id", required=True)],
+        metadata={
+            "xlsx": {
+                "width_mode": "mixed",
+                "columns": {"ID": {"width": 20}},
+            }
+        },
+    )
+    dest = tmp_path / "leak_test.xlsx"
+
+    # Mock _stream_patch_sheet_xml to raise an error during the patching phase
+    with mock.patch("py_reports.renderers._stream_patch_sheet_xml", side_effect=RuntimeError("Simulated Leak")):
+        with pytest.raises(RenderError, match="Simulated Leak"):
+            generate_report(data_source=data, spec=spec, destination=dest)
+
+    # Verify tmp file is gone
+    tmp_file = dest.with_suffix(".tmp.xlsx")
+    assert not tmp_file.exists(), "Temporary file leaked!"
