@@ -96,6 +96,14 @@ class JsonStreamingAdapter(InputAdapter):
             raise InputAdapterError(f"JSON streaming parse error: {exc}") from exc
 
 
+def _is_closed_connection_error(exc: Exception) -> bool:
+    """Classify if an exception indicates a closed or invalid database connection."""
+    error_type = type(exc).__name__.lower()
+    if error_type in ("programmingerror", "interfaceerror", "operationalerror"):
+        return True
+    return "closed" in str(exc).lower()
+
+
 @dataclass(slots=True, frozen=True)
 class SqlAdapter(InputAdapter):
     """Adapter for SQL query results via a DB-API 2.0 connection."""
@@ -106,16 +114,16 @@ class SqlAdapter(InputAdapter):
 
     def adapt(self, data_source: Any) -> Iterable[Record]:
         # Proactive check for drivers that support the 'closed' attribute (e.g., psycopg2)
-        if getattr(self.connection, "closed", False):
+        is_closed = getattr(self.connection, "closed", False)
+        if callable(is_closed):
+            is_closed = is_closed()
+        if is_closed:
             raise InputAdapterError("The connection is closed.")
 
         try:
             cursor = self.connection.cursor()
         except Exception as exc:
-            # Handle standard DB-API errors for closed connections (e.g., sqlite3.ProgrammingError)
-            err_msg = str(exc).lower()
-            err_type = type(exc).__name__
-            if "closed" in err_msg or "programmingerror" in err_type.lower() or "interfaceerror" in err_type.lower():
+            if _is_closed_connection_error(exc):
                 raise InputAdapterError(
                     f"Failed to create cursor. The connection might be closed or invalid. Original error: {exc}"
                 ) from exc
@@ -135,14 +143,23 @@ class SqlAdapter(InputAdapter):
                     "SQL query did not return rows; only SELECT statements are supported"
                 )
 
-            # Optimization: build col_map once for manual zipping if needed
-            # This handles drivers that return dicts natively (e.g. DictCursor)
-            columns = [description[0] for description in cursor.description]
-            col_map = {col: i for i, col in enumerate(columns)}
-            for row in cursor:
-                if isinstance(row, Mapping):
-                    yield row
-                else:
+            # Hot-path optimization: detect if the driver returns mappings natively (e.g. DictCursor)
+            # and avoid the cost of manual TupleRecord zipping and type-checking in the loop.
+            iterator = iter(cursor)
+            try:
+                first_row = next(iterator)
+            except StopIteration:
+                return
+
+            if isinstance(first_row, Mapping):
+                yield first_row
+                yield from iterator
+            else:
+                # Manual zipping for tuple-based rows
+                columns = [description[0] for description in cursor.description]
+                col_map = {col: i for i, col in enumerate(columns)}
+                yield TupleRecord(col_map, first_row)
+                for row in iterator:
                     yield TupleRecord(col_map, row)
         finally:
             cursor.close()
