@@ -161,6 +161,35 @@ def test_sql_adapter_raises_for_non_select_query() -> None:
         list(adapter.adapt(None))
 
 
+def test_sql_adapter_raises_friendly_error_for_closed_connection() -> None:
+    conn = _make_sql_connection()
+    conn.close()
+
+    adapter = SqlAdapter(query="SELECT 1", connection=conn)
+
+    # sqlite3 raises ProgrammingError when creating cursor on closed connection
+    with pytest.raises(
+        InputAdapterError, match="The connection might be closed or invalid"
+    ):
+        list(adapter.adapt(None))
+
+
+def test_sql_adapter_proactive_closed_check() -> None:
+    """Proves adapter uses .closed attribute if available."""
+
+    class MockClosedConn:
+        @property
+        def closed(self) -> bool:
+            return True
+
+        def cursor(self) -> Any:
+            return None
+
+    adapter = SqlAdapter(query="SELECT 1", connection=MockClosedConn())  # type: ignore
+    with pytest.raises(InputAdapterError, match="The connection is closed"):
+        list(adapter.adapt(None))
+
+
 def test_sql_adapter_works_with_generic_dbapi_connection() -> None:
     """Proves the adapter works with any object that satisfies the DBConnection Protocol."""
     cursor = MockDBCursor(

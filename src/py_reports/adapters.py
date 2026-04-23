@@ -105,9 +105,20 @@ class SqlAdapter(InputAdapter):
     params: tuple[Any, ...] | dict[str, Any] | None = None
 
     def adapt(self, data_source: Any) -> Iterable[Record]:
+        # Proactive check for drivers that support the 'closed' attribute (e.g., psycopg2)
+        if getattr(self.connection, "closed", False):
+            raise InputAdapterError("The connection is closed.")
+
         try:
             cursor = self.connection.cursor()
         except Exception as exc:
+            # Handle standard DB-API errors for closed connections (e.g., sqlite3.ProgrammingError)
+            err_msg = str(exc).lower()
+            err_type = type(exc).__name__
+            if "closed" in err_msg or "programmingerror" in err_type.lower() or "interfaceerror" in err_type.lower():
+                raise InputAdapterError(
+                    f"Failed to create cursor. The connection might be closed or invalid. Original error: {exc}"
+                ) from exc
             raise InputAdapterError(f"SQL cursor creation failed: {exc}") from exc
 
         try:
