@@ -240,25 +240,40 @@ class PdfRenderer(Renderer):
         )
 
         def generate_chunks() -> Iterable[Table | Spacer]:
-            total_rows: int = 0
+            # Pre-bind variables and function references for performance
+            threshold = pdf_opts.paragraph_threshold
+            _len, _str, _Paragraph = len, str, Paragraph
+            fetcher = itemgetter(*labels)
+            
+            # For a single label, itemgetter returns a scalar, otherwise a tuple.
+            single_label = len(labels) == 1
+            is_even = True
+            
             while True:
                 chunk = list(itertools.islice(all_rows_iter, chunk_size))
                 if not chunk:
                     break
 
-                # Optimized row processing: handle Paragraph only when needed
-                table_rows = [
-                    [
-                        Paragraph(val, normal_style) if len(val) > pdf_opts.paragraph_threshold or "\n" in val else val
-                        for val in (_get_cell_value(row, label) for label in labels)
-                    ]
-                    for row in chunk
-                ]
+                table_rows = []
+                for row in chunk:
+                    # Multi-field retrieval in C
+                    values = fetcher(row)
+                    if single_label:
+                        values = (values,)
+                        
+                    row_data = []
+                    for val in values:
+                        v_str = _str(val) if val is not None else ""
+                        if _len(v_str) > threshold or "\n" in v_str:
+                            row_data.append(_Paragraph(v_str, normal_style))
+                        else:
+                            row_data.append(v_str)
+                    table_rows.append(row_data)
 
                 table = Table(table_rows, colWidths=col_widths)
-                table.setStyle(style_even if total_rows % 2 == 0 else style_odd)
+                table.setStyle(style_even if is_even else style_odd)
+                is_even = not is_even
 
-                total_rows += len(chunk)
                 yield table
 
             yield Spacer(1, 0.5 * cm)

@@ -13,6 +13,7 @@ from .exceptions import (
 )
 from .service import generate_report
 from .xlsx_options import XlsxRenderOptions
+from .pdf_options import PdfRenderOptions
 
 
 def __getattr__(name: str) -> Any:
@@ -36,6 +37,7 @@ __all__ = [
     "JsonStreamingAdapter",
     "ListDictAdapter",
     "MappingError",
+    "PdfRenderOptions",
     "RenderError",
     "ReportError",
     "ReportSpec",

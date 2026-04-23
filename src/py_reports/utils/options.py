@@ -12,6 +12,15 @@ def coerce_number(value: Any, *, field_name: str, min_value: float) -> float:
         raise ReportError(f"{field_name} must be >= {min_value}")
     return number
 
+def coerce_int(value: Any, *, field_name: str, min_value: int) -> int:
+    """Validate and coerce a value to an integer with a minimum threshold."""
+    if not isinstance(value, int):
+        raise ReportError(f"{field_name} must be an integer")
+    if value < min_value:
+        raise ReportError(f"{field_name} must be >= {min_value}")
+    return value
+
+
 def coerce_optional_number(
     value: Any, *, field_name: str, min_value: float
 ) -> float | None:
