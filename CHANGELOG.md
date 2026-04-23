@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-04-22
+
+### Fixed
+- Improved PDF column width resolution robustness to handle small/empty datasets and prevent layout failures.
+- Guaranteed minimum column widths are consistently applied, even when total required width exceeds page capacity.
+
+### Changed
+- Refactored renderer width calculation using a new `clamp` utility.
+- Optimized PDF width calculation logic using declarative ratio-based redistribution and column-wise max-length processing.
+- Moved renderer constants to module level for better performance and maintainability.
+
 ## [0.1.1] - 2026-04-22
 
 ### Changed

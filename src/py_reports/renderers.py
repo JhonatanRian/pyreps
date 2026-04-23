@@ -28,10 +28,15 @@ from .contracts import OutputFormat, Renderer, ReportSpec
 from .csv_options import CsvRenderOptions
 from .exceptions import RenderError
 from .xlsx_options import XlsxColumnOptions, XlsxRenderOptions
+from .utils.options import clamp
 
 
 XLSX_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 ET.register_namespace("", XLSX_NS)
+
+_PDF_MAX_CHARS = 80
+_PDF_MIN_WIDTH_PT = 30.0  # enough to hold padding (8+8) plus a few characters
+
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -410,12 +415,11 @@ def _resolve_width_for_label(
     else:
         width = options.default_width
 
-    if column_options.min_width is not None:
-        width = max(width, column_options.min_width)
-    if column_options.max_width is not None:
-        width = min(width, column_options.max_width)
-
-    return width
+    return clamp(
+        width,
+        column_options.min_width or 0.0,
+        column_options.max_width or float("inf"),
+    )
 
 
 def _resolve_pdf_column_widths(
@@ -431,29 +435,31 @@ def _resolve_pdf_column_widths(
     if not labels:
         return []
 
-    _MAX_CHARS = 80
-    _MIN_WIDTH_PT = 30.0  # enough to hold padding (8+8) plus a few characters
+    # 1. Get max length per column (header + sampling rows)
+    max_content_lens = [len(label) for label in labels]
+    if data_rows:
+        for i, col_data in enumerate(zip(*data_rows)):
+            max_content_lens[i] = max(max_content_lens[i], max(map(len, col_data)))
 
-    char_widths = [len(label) for label in labels]
-    for row in data_rows:
-        for i, cell in enumerate(row):
-            if i < len(char_widths):
-                char_widths[i] = max(char_widths[i], len(cell))
-    char_widths = [min(max(w, 1), _MAX_CHARS) for w in char_widths]
+    # Clamp to reasonable bounds to avoid extreme proportions
+    max_content_lens = [clamp(w, 1, _PDF_MAX_CHARS) for w in max_content_lens]
 
-    total_chars = sum(char_widths)
-    widths = [available_width * (w / total_chars) for w in char_widths]
+    # 2. Initial proportional distribution
+    total_chars = sum(max_content_lens)
+    widths = [available_width * (w / total_chars) for w in max_content_lens]
 
-    # enforce minimum; redistribute surplus proportionally
-    deficit = sum(max(0.0, _MIN_WIDTH_PT - w) for w in widths)
-    if deficit > 0:
-        surplus_indices = [i for i, w in enumerate(widths) if w > _MIN_WIDTH_PT]
-        surplus_total = sum(widths[i] - _MIN_WIDTH_PT for i in surplus_indices)
-        for i, w in enumerate(widths):
-            if w < _MIN_WIDTH_PT:
-                widths[i] = _MIN_WIDTH_PT
-            elif surplus_total > 0:
-                share = (w - _MIN_WIDTH_PT) / surplus_total
-                widths[i] = _MIN_WIDTH_PT + (w - _MIN_WIDTH_PT) - deficit * share
+    # 3. Enforce minimum width by redistributing surplus from larger columns
+    deficit = sum(max(0.0, _PDF_MIN_WIDTH_PT - w) for w in widths)
+    if deficit <= 0:
+        return widths
 
-    return widths
+    surplus_total = sum(max(0.0, w - _PDF_MIN_WIDTH_PT) for w in widths)
+    # Ratio of deficit to subtract from each column's surplus.
+    # min(..., 1.0) ensures we never subtract more than the surplus itself.
+    ratio = min(deficit / surplus_total, 1.0) if surplus_total > 0 else 0.0
+
+    return [
+        _PDF_MIN_WIDTH_PT if w < _PDF_MIN_WIDTH_PT
+        else w - (w - _PDF_MIN_WIDTH_PT) * ratio
+        for w in widths
+    ]

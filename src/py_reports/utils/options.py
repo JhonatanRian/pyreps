@@ -19,3 +19,7 @@ def coerce_optional_number(
     if value is None:
         return None
     return coerce_number(value, field_name=field_name, min_value=min_value)
+
+def clamp(value: float, min_val: float, max_val: float) -> float:
+    """Restrict a value to be within [min_val, max_val]."""
+    return max(min_val, min(value, max_val))

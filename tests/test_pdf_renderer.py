@@ -91,3 +91,24 @@ def test_pdf_respects_custom_chunk_size(tmp_path: Path) -> None:
 
     assert output.exists()
     assert output.read_bytes().startswith(b"%PDF-")
+
+def test_resolve_pdf_column_widths_robustness() -> None:
+    """Verify that _resolve_pdf_column_widths handles datasets that would cause negative widths."""
+    from py_reports.renderers import _resolve_pdf_column_widths
+
+    # Scenario: 7 columns where 1 has a tiny surplus and 6 have a deficit.
+    # available_width = 200, _MIN_WIDTH_PT = 30.
+    # Total required min width = 210.
+    labels = ["LongLabel" + "x" * 23] + ["Short"] * 6
+    # char_widths will be [32, 5, 5, 5, 5, 5, 5] if no data.
+    # Let's force char_widths to be [32, 28, 28, 28, 28, 28, 28] by providing data rows.
+    data_rows = [["x" * 32] + ["x" * 28] * 6]
+    available_width = 200.0
+
+    widths = _resolve_pdf_column_widths(labels, data_rows, available_width)
+
+    # All columns should be at least _MIN_WIDTH_PT (30.0)
+    assert all(w >= 30.0 for w in widths), f"Expected all widths >= 30.0, got {widths}"
+
+    # Sum should be exactly 210.0 in this specific edge case (all at min)
+    assert abs(sum(widths) - 210.0) < 1e-6
