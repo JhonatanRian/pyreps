@@ -92,6 +92,21 @@ def test_pdf_respects_custom_chunk_size(tmp_path: Path) -> None:
     assert output.exists()
     assert output.read_bytes().startswith(b"%PDF-")
 
+
+def test_pdf_odd_chunk_size_alternating_backgrounds(tmp_path: Path) -> None:
+    """Verify that PDF generation works with an odd chunk_size across boundaries."""
+    # Data with 12 rows, chunk_size=5.
+    # Chunk 1: rows 0-4 (5 rows)
+    # Chunk 2: rows 5-9 (5 rows)
+    # Chunk 3: rows 10-11 (2 rows)
+    data = [{"id": str(i), "name": f"User {i}", "total": i} for i in range(1, 13)]
+    spec = _make_spec(metadata={"pdf": {"chunk_size": 5}})
+    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "odd_chunk.pdf")
+
+    assert output.exists()
+    assert output.read_bytes().startswith(b"%PDF-")
+
+
 def test_resolve_pdf_column_widths_robustness() -> None:
     """Verify that _resolve_pdf_column_widths handles datasets that would cause negative widths."""
     from py_reports.renderers import _resolve_pdf_column_widths

@@ -29,8 +29,14 @@ from rustpy_xlsxwriter import FastExcel
 from .contracts import OutputFormat, Renderer, ReportSpec
 from .csv_options import CsvRenderOptions
 from .exceptions import RenderError
+from .pdf_options import PdfRenderOptions
 from .xlsx_options import XlsxColumnOptions, XlsxRenderOptions
 from .utils.options import clamp
+
+# Common colors and style constants
+_PDF_STRIPE_COLOR = colors.HexColor("#F1F5F9")
+_PDF_HEADER_BLUE = colors.HexColor("#2563EB")
+_PDF_GRID_COLOR = colors.HexColor("#CBD5E1")
 
 
 XLSX_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -148,7 +154,7 @@ def _get_xlsx_row_stream(
 
 # Common style commands to avoid duplication between header and body
 _PDF_COMMON_STYLE = [
-    ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+    ("GRID", (0, 0), (-1, -1), 0.5, _PDF_GRID_COLOR),
     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
     ("TOPPADDING", (0, 0), (-1, -1), 6),
     ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
@@ -214,39 +220,42 @@ class PdfRenderer(Renderer):
         self._setup_pages(doc, header_table, header_height)
 
         # 4. Body Rendering
-        pdf_opts = spec.metadata.get("pdf", {})
-        chunk_size = pdf_opts.get("chunk_size", 200)
+        pdf_opts = PdfRenderOptions.from_metadata(spec.metadata)
+        chunk_size = pdf_opts.chunk_size
 
-        body_style = TableStyle(
-            _PDF_COMMON_STYLE
-            + [
-                ("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, colors.HexColor("#F1F5F9")]),
-                ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-                ("FONTSIZE", (0, 0), (-1, -1), 9),
-            ]
+        base_style_cmds = _PDF_COMMON_STYLE + [
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ]
+
+        # Pre-instantiate TableStyles to avoid allocation in generator loop
+        style_even = TableStyle(
+            base_style_cmds + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, _PDF_STRIPE_COLOR])]
+        )
+        style_odd = TableStyle(
+            base_style_cmds + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [_PDF_STRIPE_COLOR, colors.white])]
         )
 
-        def generate_chunks() -> Iterable[Any]:
+        def generate_chunks() -> Iterable[Table | Spacer]:
+            total_rows: int = 0
             while True:
                 chunk = list(itertools.islice(all_rows_iter, chunk_size))
                 if not chunk:
                     break
 
-                table_rows = []
-                for row in chunk:
-                    processed_row = []
-                    for label in labels:
-                        val = _get_cell_value(row, label)
-                        # Optimization: Use Paragraph only for long text or multi-line text.
-                        # ReportLab Table handles raw strings much faster.
-                        if len(val) > 30 or "\n" in val:
-                            processed_row.append(Paragraph(val, normal_style))
-                        else:
-                            processed_row.append(val)
-                    table_rows.append(processed_row)
+                # Optimized row processing: handle Paragraph only when needed
+                table_rows = [
+                    [
+                        Paragraph(val, normal_style) if len(val) > 30 or "\n" in val else val
+                        for val in (_get_cell_value(row, label) for label in labels)
+                    ]
+                    for row in chunk
+                ]
 
                 table = Table(table_rows, colWidths=col_widths)
-                table.setStyle(body_style)
+                table.setStyle(style_even if total_rows % 2 == 0 else style_odd)
+
+                total_rows += len(chunk)
                 yield table
 
             yield Spacer(1, 0.5 * cm)
@@ -263,7 +272,7 @@ class PdfRenderer(Renderer):
             TableStyle(
                 _PDF_COMMON_STYLE
                 + [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2563EB")),
+                    ("BACKGROUND", (0, 0), (-1, 0), _PDF_HEADER_BLUE),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                     ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                     ("FONTSIZE", (0, 0), (-1, 0), 10),
