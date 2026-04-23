@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Callable, Iterable, Literal, Mapping, Protocol
 
 OutputFormat = Literal["csv", "xlsx", "pdf"]
@@ -47,18 +48,21 @@ class ReportSpec:
         columns: Tuple of ColumnSpec defining the report schema.
         output_format: Target format. Allowed: 'csv', 'xlsx', 'pdf'.
         encoding: Text encoding for the output file (default: 'utf-8').
-        metadata: Optional dictionary for format-specific options (keys: 'csv', 'xlsx', 'pdf').
+        metadata: Optional mapping for format-specific options (keys: 'csv', 'xlsx', 'pdf').
     """
 
     columns: tuple[ColumnSpec, ...]
     output_format: OutputFormat = "csv"
     encoding: str = "utf-8"
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, Any] = field(default_factory=dict)
     labels: tuple[str, ...] = field(init=False)
 
     def __post_init__(self) -> None:
         # Force columns to be a tuple for strict immutability
         object.__setattr__(self, "columns", tuple(self.columns))
+        # Ensure metadata is immutable
+        if not isinstance(self.metadata, MappingProxyType):
+            object.__setattr__(self, "metadata", MappingProxyType(self.metadata))
         # Cache labels once as an immutable tuple
         object.__setattr__(self, "labels", tuple(col.label for col in self.columns))
 

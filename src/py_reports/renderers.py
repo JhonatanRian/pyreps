@@ -344,7 +344,7 @@ class _WidthTracker:
         self._rows = rows
         # Filter labels to only track those that need auto-width.
         exclude = exclude_labels or set()
-        self._labels = [label for label in labels if label not in exclude]
+        self._labels = tuple(label for label in labels if label not in exclude)
         self.max_lens: dict[str, int] = {label: len(label) for label in labels}
 
     def __iter__(self) -> Iterator[Mapping[str, Any]]:
@@ -521,14 +521,14 @@ def _resolve_pdf_column_widths(
     labels: Sequence[str],
     data_rows: list[list[str]],
     available_width: float,
-) -> list[float]:
+) -> tuple[float, ...]:
     """Distribute available page width proportionally based on max content length per column.
 
     Content length is capped to avoid a single column monopolising the page.
     Each column also gets a minimum width to ensure padding fits.
     """
     if not labels:
-        return []
+        return ()
 
     # 1. Get max length per column (header + sampling rows)
     max_content_lens = [len(label) for label in labels]
@@ -546,15 +546,15 @@ def _resolve_pdf_column_widths(
     # 3. Enforce minimum width by redistributing surplus from larger columns
     deficit = sum(max(0.0, _PDF_MIN_WIDTH_PT - w) for w in widths)
     if deficit <= 0:
-        return widths
+        return tuple(widths)
 
     surplus_total = sum(max(0.0, w - _PDF_MIN_WIDTH_PT) for w in widths)
     # Ratio of deficit to subtract from each column's surplus.
     # min(..., 1.0) ensures we never subtract more than the surplus itself.
     ratio = min(deficit / surplus_total, 1.0) if surplus_total > 0 else 0.0
 
-    return [
+    return tuple(
         _PDF_MIN_WIDTH_PT if w < _PDF_MIN_WIDTH_PT
         else w - (w - _PDF_MIN_WIDTH_PT) * ratio
         for w in widths
-    ]
+    )
