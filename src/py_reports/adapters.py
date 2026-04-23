@@ -10,6 +10,7 @@ import orjson
 
 from .contracts import DBConnection, InputAdapter, Record
 from .exceptions import InputAdapterError
+from .utils.records import TupleRecord
 
 
 def _validate_mappings(records: Iterable[Any]) -> Iterator[Record]:
@@ -123,13 +124,14 @@ class SqlAdapter(InputAdapter):
                     "SQL query did not return rows; only SELECT statements are supported"
                 )
 
-            # Optimization: check first row to see if we need manual zipping
+            # Optimization: build col_map once for manual zipping if needed
             # This handles drivers that return dicts natively (e.g. DictCursor)
             columns = [description[0] for description in cursor.description]
+            col_map = {col: i for i, col in enumerate(columns)}
             for row in cursor:
                 if isinstance(row, Mapping):
                     yield row
                 else:
-                    yield dict(zip(columns, row))
+                    yield TupleRecord(col_map, row)
         finally:
             cursor.close()

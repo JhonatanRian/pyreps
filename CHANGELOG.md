@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-04-22
+
+### Added
+- `TupleRecord` utility in `src/py_reports/utils/records.py` providing a lightweight `Mapping` wrapper for tuple-based data.
+
+### Performance
+- Optimized `SqlAdapter` to use `TupleRecord`, eliminating per-row dictionary allocations (`dict(zip)`) and significantly reducing memory pressure during large-scale SQL data streaming.
+- Implemented a Flyweight pattern for database rows, sharing column metadata across all records in a result set.
+
 ## [0.1.2] - 2026-04-22
 
 ### Fixed
