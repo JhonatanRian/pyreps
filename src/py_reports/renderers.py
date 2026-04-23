@@ -444,6 +444,7 @@ def _rebuild_xlsx_archive(src: Path, dst: Path, cols_el: ET.Element) -> None:
 _SHEET_DATA_RE = re.compile(b"<[^:>]*:?sheetData")
 # Matches <cols> or <x:cols> with any attributes, including self-closing
 _COLS_CLEAN_RE = re.compile(b"<[^:>]*:?cols[^>]*?(/>|.*?</[^:>]*:?cols>)", flags=re.DOTALL)
+_PATCH_SEARCH_OVERLAP = 128
 
 
 def _stream_patch_sheet_xml(
@@ -460,35 +461,34 @@ def _stream_patch_sheet_xml(
     while True:
         chunk = instream.read(chunk_size)
         if not chunk:
-            # Fallback: '<sheetData' tag not found. Append before end if possible.
-            outstream.write(buffer)
-            outstream.write(cols_bytes)
-            return
+            # Fallback: '<sheetData' tag not found.
+            raise RenderError("XLSX patch failed: <sheetData> tag not found in worksheet XML.")
 
         buffer.extend(chunk)
 
         if len(buffer) > max_buffer_size:
             # Safety limit to prevent OOM on malformed XML.
-            outstream.write(buffer)
-            outstream.write(cols_bytes)
-            shutil.copyfileobj(instream, outstream)
-            return
+            raise RenderError(
+                f"XLSX patch failed: worksheet metadata exceeds {max_buffer_size // 1024 // 1024}MB limit."
+            )
 
         # Look for the start of the main tag in the current chunk + a safety overlap
         # from the end of the previous buffer, to avoid O(N^2) searches and
         # handle the "boundary bug" where the tag is split between chunks.
-        search_start = max(0, len(buffer) - len(chunk) - 20)
+        search_start = max(0, len(buffer) - len(chunk) - _PATCH_SEARCH_OVERLAP)
         match = _SHEET_DATA_RE.search(buffer, search_start)
         if not match:
             continue
 
         # Breakpoint found. Split the file before insertion.
         split_idx = match.start()
-        head = bytes(buffer[:split_idx])
-        tail = bytes(buffer[split_idx:])
+        # Use memoryview to avoid large string copies during slicing and cleaning.
+        view = memoryview(buffer)
+        head = view[:split_idx]
+        tail = view[split_idx:]
 
         # Clean any existing <cols> blocks from the head.
-        clean_head = _COLS_CLEAN_RE.sub(b"", head)
+        clean_head = _COLS_CLEAN_RE.sub(b"", head.tobytes())
 
         # Write sections in the correct order required by XLSX
         outstream.write(clean_head)
