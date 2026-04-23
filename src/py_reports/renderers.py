@@ -103,19 +103,7 @@ class XlsxRenderer(Renderer):
         needs_override = _needs_width_override(options)
 
         if needs_override:
-            use_autofit = options.width_mode in {"auto", "mixed"}
-            if options.columns:
-                # Skip tracking for columns with explicit widths to save CPU.
-                exclude = {
-                    label for label, col in options.columns.items()
-                    if col.width is not None
-                }
-                tracker = _WidthTracker(rows, spec.labels, exclude_labels=exclude)
-                data = tracker
-            else:
-                # Manual mode without per-column overrides — no tracking needed.
-                tracker = None
-                data = rows
+            data, tracker = _get_xlsx_row_stream(rows, spec, options)
             FastExcel(str(output_path), autofit=False).sheet(
                 options.sheet_name, data
             ).save()
@@ -132,6 +120,30 @@ class XlsxRenderer(Renderer):
             ).save()
 
         return output_path
+
+
+def _get_xlsx_row_stream(
+    rows: Iterable[Mapping[str, Any]],
+    spec: ReportSpec,
+    options: XlsxRenderOptions,
+) -> tuple[Iterable[Mapping[str, Any]], _WidthTracker | None]:
+    """Determine the optimal row stream and tracker instance for XLSX rendering."""
+    if options.width_mode not in {"auto", "mixed"}:
+        return rows, None
+
+    exclude = {
+        label for label, col in (options.columns or {}).items()
+        if col.width is not None
+    }
+
+    # Only instantiate tracker if there are columns in the current report that need auto-width.
+    tracked_labels = [label for label in spec.labels if label not in exclude]
+
+    if not tracked_labels:
+        return rows, None
+
+    tracker = _WidthTracker(rows, spec.labels, exclude_labels=exclude)
+    return tracker, tracker
 
 
 # Common style commands to avoid duplication between header and body
@@ -310,19 +322,31 @@ class _WidthTracker:
         ]
         self.max_lens: dict[str, int] = {label: len(label) for label in labels}
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable[Mapping[str, Any]]:
         # Local variable access is faster than attribute access in tight loops.
         labels = self._labels
+        if not labels:
+            yield from self._rows
+            return
+
         max_lens = self.max_lens
+        # Use lists for faster indexing than dictionary lookups in the hot loop.
+        current_max_lens = [max_lens[label] for label in labels]
 
         for row in self._rows:
-            for label in labels:
-                value = row.get(label)
+            for i, label in enumerate(labels):
+                # Use direct access row[label] instead of row.get() as keys are guaranteed.
+                value = row[label]
                 if value is not None:
-                    val_str = str(value)
-                    if len(val_str) > max_lens[label]:
-                        max_lens[label] = len(val_str)
+                    # Avoid str() if already a string; calling type() is faster.
+                    value_len = len(value) if type(value) is str else len(str(value))
+                    if value_len > current_max_lens[i]:
+                        current_max_lens[i] = value_len
             yield row
+
+        # Synchronize back to the dictionary for use in patching.
+        for i, label in enumerate(labels):
+            max_lens[label] = current_max_lens[i]
 
 
 def _needs_width_override(options: XlsxRenderOptions) -> bool:
