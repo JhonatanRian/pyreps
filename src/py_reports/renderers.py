@@ -7,8 +7,9 @@ import re
 import shutil
 import xml.etree.ElementTree as ET
 import zipfile
+from operator import itemgetter
 from pathlib import Path
-from typing import IO, Any, Callable, Iterable, Mapping, TypeVar
+from typing import IO, Any, Callable, Iterable, Iterator, Mapping, TypeVar
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -325,37 +326,43 @@ class _WidthTracker:
     ) -> None:
         self._rows = rows
         # Filter labels to only track those that need auto-width.
-        self._labels = [
-            label for label in labels
-            if label not in (exclude_labels or set())
-        ]
+        exclude = exclude_labels or set()
+        self._labels = [label for label in labels if label not in exclude]
         self.max_lens: dict[str, int] = {label: len(label) for label in labels}
 
-    def __iter__(self) -> Iterable[Mapping[str, Any]]:
+    def __iter__(self) -> Iterator[Mapping[str, Any]]:
         # Local variable access is faster than attribute access in tight loops.
         labels = self._labels
         if not labels:
             yield from self._rows
             return
 
-        max_lens = self.max_lens
-        # Use lists for faster indexing than dictionary lookups in the hot loop.
-        current_max_lens = [max_lens[label] for label in labels]
+        # Optimization: Move built-ins and indexing overhead out of the hot loop.
+        fetcher = itemgetter(*labels)
+        indices = list(range(len(labels)))
+        current_max_lens = [self.max_lens[label] for label in labels]
+        _len, _type, _str, _str_type = len, type, str, str
 
         for row in self._rows:
-            for i, label in enumerate(labels):
-                # Use direct access row[label] instead of row.get() as keys are guaranteed.
-                value = row[label]
-                if value is not None:
-                    # Avoid str() if already a string; calling type() is faster.
-                    value_len = len(value) if type(value) is str else len(str(value))
-                    if value_len > current_max_lens[i]:
-                        current_max_lens[i] = value_len
+            # itemgetter(*labels)(row) is faster than individual row[label] lookups.
+            # It returns a single value if len(labels) == 1, else a tuple.
+            values = fetcher(row)
+            if _len(labels) == 1:
+                values = (values,)
+
+            for i in indices:
+                val = values[i]
+                if val is None:
+                    continue
+
+                # Avoid str() if already a string; type() check is faster.
+                val_len = _len(val) if _type(val) is _str_type else _len(_str(val))
+                if val_len > current_max_lens[i]:
+                    current_max_lens[i] = val_len
             yield row
 
         # Synchronize back to the dictionary for use in patching.
-        for i, label in enumerate(labels):
-            max_lens[label] = current_max_lens[i]
+        self.max_lens.update(zip(labels, current_max_lens))
 
 
 def _needs_width_override(options: XlsxRenderOptions) -> bool:
