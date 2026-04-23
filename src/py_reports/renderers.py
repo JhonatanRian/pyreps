@@ -249,7 +249,7 @@ class PdfRenderer(Renderer):
                 # Optimized row processing: handle Paragraph only when needed
                 table_rows = [
                     [
-                        Paragraph(val, normal_style) if len(val) > 30 or "\n" in val else val
+                        Paragraph(val, normal_style) if len(val) > pdf_opts.paragraph_threshold or "\n" in val else val
                         for val in (_get_cell_value(row, label) for label in labels)
                     ]
                     for row in chunk

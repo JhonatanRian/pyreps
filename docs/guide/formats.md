@@ -126,6 +126,7 @@ spec = ReportSpec(
 | Opção | Tipo | Padrão | Descrição |
 |-------|------|--------|-----------|
 | `chunk_size` | `int` | `200` | Número de linhas por chunk. Menor = menos RAM, maior = menos overhead. |
+| `paragraph_threshold` | `int` | `30` | Limite de caracteres para usar `Paragraph` com quebra de linha automática. |
 
 ```python
 spec = ReportSpec(
