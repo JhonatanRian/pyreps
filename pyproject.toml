@@ -27,11 +27,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jhonatan/py-reports"
-Documentation = "https://py-reports.readthedocs.io/"
-Repository = "https://github.com/jhonatan/py-reports"
-Issues = "https://github.com/jhonatan/py-reports/issues"
-Changelog = "https://github.com/jhonatan/py-reports/blob/master/CHANGELOG.md"
+Homepage = "https://github.com/jhonatan/pyreps"
+Documentation = "https://jhonatan.github.io/pyreps/"
+Repository = "https://github.com/jhonatan/pyreps"
+Issues = "https://github.com/jhonatan/pyreps/issues"
+Changelog = "https://github.com/jhonatan/pyreps/blob/master/CHANGELOG.md"
 
 [dependency-groups]
 dev = [

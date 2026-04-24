@@ -1,6 +1,6 @@
 # Performance
 
-O **py-reports** foi projetado para alta performance e baixo consumo de memória.
+O **pyreps** foi projetado para alta performance e baixo consumo de memória.
 
 ## Pipeline Streaming
 

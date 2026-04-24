@@ -1,10 +1,10 @@
-site_name: py-reports
-site_url: https://py-reports.readthedocs.io/
+site_name: pyreps
+site_url: https://pyreps.readthedocs.io/
 site_description: Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust.
 site_author: Jhonatan
 
-repo_name: py-reports
-repo_url: https://github.com/jhonatan/py-reports
+repo_name: pyreps
+repo_url: https://github.com/jhonatan/pyreps
 
 copyright: Copyright &copy; 2026 Jhonatan
 
@@ -99,9 +99,9 @@ markdown_extensions:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/jhonatan/py-reports
+      link: https://github.com/jhonatan/pyreps
     - icon: fontawesome/brands/python
-      link: https://pypi.org/project/py-reports/
+      link: https://pypi.org/project/pyreps/
 
 nav:
   - Home: index.md

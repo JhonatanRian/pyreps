@@ -3,7 +3,7 @@ hide:
   - navigation
 ---
 
-# py-reports
+# pyreps
 
 <p align="center" style="font-size: 1.25em;">
   Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust. :zap:
@@ -48,13 +48,13 @@ hide:
 ## Instalação
 
 ```bash
-pip install py-reports
+pip install pyreps
 ```
 
 Ou com **uv**:
 
 ```bash
-uv add py-reports
+uv add pyreps
 ```
 
 ## Exemplo Rápido
@@ -101,5 +101,5 @@ O pipeline é **100% streaming** para CSV e XLSX — cada registro é processado
 ## Links
 
 - :fontawesome-brands-github: [Código fonte](https://github.com/jhonatan/py-reports)
-- :fontawesome-brands-python: [PyPI](https://pypi.org/project/py-reports/)
+- :fontawesome-brands-python: [PyPI](https://pypi.org/project/pyreps/)
 - :material-bug: [Issues](https://github.com/jhonatan/py-reports/issues)

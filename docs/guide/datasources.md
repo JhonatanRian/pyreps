@@ -1,6 +1,6 @@
 # Fontes de Dados
 
-O **py-reports** aceita dados de múltiplas fontes via adapters. A detecção é automática para os tipos mais comuns.
+O **pyreps** aceita dados de múltiplas fontes via adapters. A detecção é automática para os tipos mais comuns.
 
 ## list[dict] — ListDictAdapter
 

@@ -1,6 +1,6 @@
 # Formatos de Saída
 
-O **py-reports** suporta três formatos de saída, todos configuráveis via `ReportSpec.metadata`.
+O **pyreps** suporta três formatos de saída, todos configuráveis via `ReportSpec.metadata`.
 
 ## CSV
 

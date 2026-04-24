@@ -86,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2026-04-22
 
 ### Added
-- Initial release of the `py-reports` core API.
+- Initial release of the `pyreps` core API.
 - Support for multiple output formats: **CSV**, **XLSX**, and **PDF**.
 - Input adapters for diverse data sources:
     - `ListAdapter`: For standard Python list of dictionaries.

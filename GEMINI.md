@@ -1,7 +1,7 @@
-# Project Gemini Context: py-reports
+# Project Gemini Context: pyreps
 
 ## Project Overview
-`py-reports` is a high-performance Python library designed for generating reports in CSV, XLSX, and PDF formats. It prioritizes low memory usage through a 100% streaming pipeline for CSV and XLSX, leveraging Rust-powered components (`rustpy-xlsxwriter`, `orjson`) for maximum speed.
+`pyreps` is a high-performance Python library designed for generating reports in CSV, XLSX, and PDF formats. It prioritizes low memory usage through a 100% streaming pipeline for CSV and XLSX, leveraging Rust-powered components (`rustpy-xlsxwriter`, `orjson`) for maximum speed.
 
 ### Main Technologies
 - **Python 3.12+**: Utilizes modern features like `slots=True` in dataclasses and advanced typing.

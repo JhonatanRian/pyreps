@@ -1,13 +1,13 @@
 <div align="center">
 
-# py-reports
+# pyreps
 
 **Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust.** ⚡
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-[Documentação](https://py-reports.readthedocs.io/) · [PyPI](https://pypi.org/project/py-reports/) · [Issues](https://github.com/jhonatan/py-reports/issues)
+[Documentação](https://pyreps.readthedocs.io/) · [PyPI](https://pypi.org/project/pyreps/) · [Issues](https://github.com/jhonatan/pyreps/issues)
 
 </div>
 
@@ -25,7 +25,7 @@
 ## Instalação
 
 ```bash
-pip install py-reports
+pip install pyreps
 ```
 
 ## Exemplo Rápido
@@ -127,7 +127,7 @@ Benchmark com 6 colunas e tipos declarativos:
 
 ## Documentação
 
-📖 Documentação completa em [py-reports.readthedocs.io](https://py-reports.readthedocs.io/)
+📖 Documentação completa em [pyreps.readthedocs.io](https://pyreps.readthedocs.io/)
 
 ## Licença
 

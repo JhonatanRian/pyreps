@@ -1,4 +1,4 @@
-"""Performance and memory benchmarks for py-reports.
+"""Performance and memory benchmarks for pyreps.
 
 Measures wall-clock time and peak Python-level memory (tracemalloc)
 for each output format across different dataset sizes.

@@ -5,24 +5,24 @@
 === "pip"
 
     ```bash
-    pip install py-reports
+    pip install pyreps
     ```
 
 === "uv"
 
     ```bash
-    uv add py-reports
+    uv add pyreps
     ```
 
 === "poetry"
 
     ```bash
-    poetry add py-reports
+    poetry add pyreps
     ```
 
 ## Conceitos Básicos
 
-O **py-reports** funciona em 3 passos:
+O **pyreps** funciona em 3 passos:
 
 1. **Definir colunas** com `ColumnSpec` — o que extrair e como formatar.
 2. **Criar a spec** com `ReportSpec` — formato de saída e metadados.

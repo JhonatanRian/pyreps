@@ -19,7 +19,7 @@ from .pdf_options import PdfRenderOptions
 def __getattr__(name: str) -> Any:
     if name == "__version__":
         try:
-            return version("py-reports")
+            return version("pyreps")
         except PackageNotFoundError:
             return "0.0.0-dev"
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
