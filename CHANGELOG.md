@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.5] - 2026-04-24
+
+### Added
+- Created `src/py_reports/utils/db.py` to centralize database connection logic and normalize DB-API 2.0 driver inconsistencies (heuristics for closed connections).
+- Introduced `src/py_reports/utils/xml_zip.py` to modularize low-level XML patching within ZIP archives, improving the maintainability of the XLSX renderer.
+- Added `ensure_mapping_stream` utility in `records.py` to provide optimized, fail-fast stream validation.
+
+### Changed
+- Refactored `src/py_reports/adapters.py` to use modular utilities, removing infrastructure code from business logic.
+- Refactored `src/py_reports/renderers.py` to delegate file preparation, error wrapping, and record processing to shared utilities.
+- Centralized `wrap_render_error` decorator in `src/py_reports/exceptions.py`.
+- Moved `prepare_destination` to `src/py_reports/utils/files.py`.
+- Improved code legibility in `PdfRenderer` by removing redundant micro-optimization aliases.
+
+### Performance
+- Implemented "Validate-First-Row" pattern across all input adapters, eliminating `isinstance` overhead for every record in large datasets.
+- Optimized `TupleRecord` with a specialized `.get()` method to bypass the generic `Mapping` lookup overhead.
+- Enhanced `WidthTracker` performance by using `enumerate` and localized built-ins in the hot-path loop.
+
+## [0.1.4] - 2026-04-23
+
+### Added
+- Parameterized PDF paragraph heuristic with new `paragraph_threshold` option in `PdfRenderOptions`.
+- Exported `PdfRenderOptions` in the root `py_reports` package for API consistency.
+- Introduced `coerce_int` utility for centralized and robust integer validation in metadata parsing.
+
+### Fixed
+- Improved `SqlAdapter` reliability with proactive connection state validation and user-friendly error messages for closed or invalid database connections.
+- Resolved a performance regression in XLSX streaming patch by optimizing regex search from $O(N^2)$ to $O(N)$.
+- Ensured XLSX patcher robustness against long XML namespaces and chunk boundary edge cases using a safety search overlap.
+- Added explicit error handling in XLSX patching, raising `RenderError` instead of producing corrupted files on failure.
+
+### Changed
+- Enforced strict architectural immutability for `ReportSpec`:
+    - Converted `columns` and `labels` fields from `list` to `tuple`.
+    - Wrapped `metadata` in `MappingProxyType` to prevent in-place modifications of the specification.
+- Generalized renderer internal APIs to use `Sequence` type hints for better collection flexibility.
+- Refactored `SqlAdapter` for better idiomatic compliance and robustness when dealing with diverse DB-API drivers.
+
+### Performance
+- Optimized `PdfRenderer` hot-path by replacing row-level generator expressions with `itemgetter` and localized name lookups.
+- Improved memory efficiency in XLSX patching using `memoryview` for zero-copy buffer slicing.
+- Optimized `SqlAdapter` hot-path by hoisting row-type detection out of the main generator loop.
+
+### Removed
+- Deleted obsolete `fix_renderer.py` script.
+
 ## [0.1.3] - 2026-04-22
 
 ### Added

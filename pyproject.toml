@@ -1,11 +1,11 @@
 [project]
 name = "py-reports"
-version = "0.1.0"
+version = "0.1.4"
 description = "Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust."
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
-authors = [{ name = "Jhonatan" }]
+authors = [{ name = "Jhonatan", email = "jhonatanrian@zohomail.com" }]
 keywords = ["reports", "csv", "xlsx", "pdf", "export", "streaming", "rust"]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -40,6 +40,7 @@ dev = [
     "mkdocstrings[python]>=1.0.3",
     "openpyxl>=3.1.5",
     "pytest>=8.4.2",
+    "pytest-cov>=7.1.0",
 ]
 
 [build-system]
