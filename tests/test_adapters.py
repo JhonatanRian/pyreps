@@ -64,7 +64,7 @@ def test_list_dict_adapter_rejects_non_mapping_items() -> None:
     adapter = ListDictAdapter()
 
     with pytest.raises(InputAdapterError, match="Input record must be a mapping"):
-        list(adapter.adapt([{"id": "1"}, 2]))
+        list(adapter.adapt([2, {"id": "1"}]))
 
 
 def test_list_dict_adapter_fails_fast_for_strings() -> None:

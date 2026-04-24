@@ -10,17 +10,8 @@ import orjson
 
 from .contracts import DBConnection, InputAdapter, Record
 from .exceptions import InputAdapterError
-from .utils.records import TupleRecord
-
-
-def _validate_mappings(records: Iterable[Any]) -> Iterator[Record]:
-    """Helper generator to validate that each record is a Mapping."""
-    for item in records:
-        if not isinstance(item, Mapping):
-            raise InputAdapterError(
-                f"Input record must be a mapping, got {type(item).__name__}"
-            )
-        yield item
+from .utils.db import get_cursor
+from .utils.records import ensure_mapping_stream, wrap_cursor_stream
 
 
 class ListDictAdapter(InputAdapter):
@@ -32,7 +23,7 @@ class ListDictAdapter(InputAdapter):
         ):
             raise InputAdapterError("list/dict adapter requires an iterable of mappings")
 
-        return _validate_mappings(data_source)
+        return ensure_mapping_stream(iter(data_source))
 
 
 class JsonAdapter(InputAdapter):
@@ -63,7 +54,7 @@ class JsonAdapter(InputAdapter):
         if not isinstance(payload, list):
             raise InputAdapterError("json payload must resolve to a list of records")
 
-        return _validate_mappings(payload)
+        return ensure_mapping_stream(iter(payload))
 
 
 @dataclass(slots=True, frozen=True)
@@ -91,17 +82,9 @@ class JsonStreamingAdapter(InputAdapter):
 
     def _iterate(self, stream: BinaryIO) -> Iterator[Record]:
         try:
-            yield from _validate_mappings(ijson.items(stream, self.item_path))
+            yield from ensure_mapping_stream(ijson.items(stream, self.item_path))
         except ijson.JSONError as exc:
             raise InputAdapterError(f"JSON streaming parse error: {exc}") from exc
-
-
-def _is_closed_connection_error(exc: Exception) -> bool:
-    """Classify if an exception indicates a closed or invalid database connection."""
-    error_type = type(exc).__name__.lower()
-    if error_type in ("programmingerror", "interfaceerror", "operationalerror"):
-        return True
-    return "closed" in str(exc).lower()
 
 
 @dataclass(slots=True, frozen=True)
@@ -113,21 +96,7 @@ class SqlAdapter(InputAdapter):
     params: tuple[Any, ...] | dict[str, Any] | None = None
 
     def adapt(self, data_source: Any) -> Iterable[Record]:
-        # Proactive check for drivers that support the 'closed' attribute (e.g., psycopg2)
-        is_closed = getattr(self.connection, "closed", False)
-        if callable(is_closed):
-            is_closed = is_closed()
-        if is_closed:
-            raise InputAdapterError("The connection is closed.")
-
-        try:
-            cursor = self.connection.cursor()
-        except Exception as exc:
-            if _is_closed_connection_error(exc):
-                raise InputAdapterError(
-                    f"Failed to create cursor. The connection might be closed or invalid. Original error: {exc}"
-                ) from exc
-            raise InputAdapterError(f"SQL cursor creation failed: {exc}") from exc
+        cursor = get_cursor(self.connection)
 
         try:
             try:
@@ -143,23 +112,6 @@ class SqlAdapter(InputAdapter):
                     "SQL query did not return rows; only SELECT statements are supported"
                 )
 
-            # Hot-path optimization: detect if the driver returns mappings natively (e.g. DictCursor)
-            # and avoid the cost of manual TupleRecord zipping and type-checking in the loop.
-            iterator = iter(cursor)
-            try:
-                first_row = next(iterator)
-            except StopIteration:
-                return
-
-            if isinstance(first_row, Mapping):
-                yield first_row
-                yield from iterator
-            else:
-                # Manual zipping for tuple-based rows
-                columns = [description[0] for description in cursor.description]
-                col_map = {col: i for i, col in enumerate(columns)}
-                yield TupleRecord(col_map, first_row)
-                for row in iterator:
-                    yield TupleRecord(col_map, row)
+            yield from wrap_cursor_stream(cursor)
         finally:
             cursor.close()

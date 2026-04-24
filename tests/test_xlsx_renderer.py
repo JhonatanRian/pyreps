@@ -231,8 +231,11 @@ def test_xlsx_stream_patch_tag_boundary() -> None:
     
     # We position "<sheetData>" so "<she" (4 chars) is at the end of the first chunk
     # and "etData>" is at the start of the second chunk.
-    prefix = b"A" * (chunk_size - 4)
-    xml_content = prefix + b"<sheetData><row/></sheetData>"
+    # To make it valid XML, we wrap it in <worksheet>.
+    # We must use the same namespace so ElementTree can find tags.
+    header = f'<worksheet xmlns="{_XLSX_NS}">'.encode()
+    prefix_len = (chunk_size - 4) - len(header)
+    xml_content = header + (b"A" * prefix_len) + b"<sheetData><row/></sheetData></worksheet>"
     
     instream = io.BytesIO(xml_content)
     outstream = io.BytesIO()
@@ -244,10 +247,27 @@ def test_xlsx_stream_patch_tag_boundary() -> None:
     
     result = outstream.getvalue()
     
-    # Check if patch was successful
-    assert b"<cols" in result, "Patch failed: <cols> tag missing"
-    assert b"<sheetData" in result, "Data corrupted: <sheetData> tag missing"
-    # Ensure relative order
-    assert result.find(b"<cols") < result.find(b"<sheetData"), "<cols> must be before <sheetData>"
+    # Check if patch was successful using XML parsing
+    root = ET.fromstring(result)
+    ns = {"ns": _XLSX_NS}
+    
+    cols = root.findall("ns:cols", ns)
+    assert len(cols) == 1, "Patch failed: <cols> tag missing or duplicated"
+    
+    col = cols[0].find("ns:col", ns)
+    assert col is not None
+    assert col.get("width") == "20"
+    
+    sheet_data = root.find("ns:sheetData", ns)
+    assert sheet_data is not None, "Data corrupted: <sheetData> tag missing"
+    
+    # Ensure relative order (cols must be before sheetData)
+    # In ElementTree list, cols should come before sheetData
+    elements = list(root)
+    cols_idx = elements.index(cols[0])
+    data_idx = elements.index(sheet_data)
+    assert cols_idx < data_idx, "<cols> must be before <sheetData>"
+    
     # Ensure content was preserved
-    assert b"<row/>" in result
+    row = sheet_data.find("ns:row", ns)
+    assert row is not None
