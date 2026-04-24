@@ -1,6 +1,6 @@
 [project]
-name = "py-reports"
-version = "0.1.4"
+name = "pyreps"
+version = "0.1.5"
 description = "Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust."
 readme = "README.md"
 requires-python = ">=3.12"
