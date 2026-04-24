@@ -211,8 +211,8 @@ def test_xlsx_tmp_file_cleaned_up_on_error(tmp_path: Path) -> None:
     )
     dest = tmp_path / "leak_test.xlsx"
 
-    # Mock _stream_patch_sheet_xml to raise an error during the patching phase
-    with mock.patch("py_reports.renderers._stream_patch_sheet_xml", side_effect=RuntimeError("Simulated Leak")):
+    # Mock stream_patch_sheet_xml to raise an error during the patching phase
+    with mock.patch("py_reports.renderers.stream_patch_sheet_xml", side_effect=RuntimeError("Simulated Leak")):
         with pytest.raises(RenderError, match="Simulated Leak"):
             generate_report(data_source=data, spec=spec, destination=dest)
 
@@ -224,7 +224,7 @@ def test_xlsx_tmp_file_cleaned_up_on_error(tmp_path: Path) -> None:
 def test_xlsx_stream_patch_tag_boundary() -> None:
     """Stress test: tag <sheetData> split exactly across 64KB chunk boundaries."""
     import io
-    from py_reports.renderers import _stream_patch_sheet_xml
+    from py_reports.utils.xml_zip import stream_patch_sheet_xml as _stream_patch_sheet_xml
 
     # chunk_size in _stream_patch_sheet_xml is 65536
     chunk_size = 65536

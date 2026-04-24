@@ -28,3 +28,10 @@ def atomic_write(destination: Path | str, suffix: str | None = None) -> Iterator
         tmp_path.replace(dest)
     finally:
         tmp_path.unlink(missing_ok=True)
+
+
+def prepare_destination(destination: str | Path) -> Path:
+    """Ensure parent directory exists and return Path object."""
+    output_path = Path(destination)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    return output_path

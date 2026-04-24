@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 import csv
-import functools
 import itertools
 import re
-import shutil
 import xml.etree.ElementTree as ET
-import zipfile
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from operator import itemgetter
 from pathlib import Path
-from typing import IO, Any, Callable, TypeVar
+from typing import Any
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -30,49 +27,25 @@ from rustpy_xlsxwriter import FastExcel
 
 from .contracts import OutputFormat, Renderer, ReportSpec
 from .csv_options import CsvRenderOptions
-from .exceptions import RenderError
+from .exceptions import wrap_render_error
 from .pdf_options import PdfRenderOptions
 from .xlsx_options import XlsxColumnOptions, XlsxRenderOptions
 from .utils import atomic_write
+from .utils.files import prepare_destination
 from .utils.options import clamp
+from .utils.records import WidthTracker, get_cell_value
+from .utils.xml_zip import patch_zip_xml, stream_patch_sheet_xml
 
 # Common colors and style constants
 _PDF_STRIPE_COLOR = colors.HexColor("#F1F5F9")
 _PDF_HEADER_BLUE = colors.HexColor("#2563EB")
 _PDF_GRID_COLOR = colors.HexColor("#CBD5E1")
 
-
 XLSX_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 ET.register_namespace("", XLSX_NS)
 
 _PDF_MAX_CHARS = 80
-_PDF_MIN_WIDTH_PT = 30.0  # enough to hold padding (8+8) plus a few characters
-
-
-F = TypeVar("F", bound=Callable[..., Any])
-
-
-def wrap_render_error(format_name: str) -> Callable[[F], F]:
-    """Decorator to wrap any exception during rendering into a RenderError."""
-
-    def decorator(func: F) -> F:
-        @functools.wraps(func)
-        def wrapper(*args: Any, **kwargs: Any) -> Any:
-            try:
-                return func(*args, **kwargs)
-            except Exception as exc:
-                raise RenderError(f"Failed to render {format_name}: {exc}") from exc
-
-        return wrapper  # type: ignore
-
-    return decorator
-
-
-def _prepare_destination(destination: str | Path) -> Path:
-    """Ensure parent directory exists and return Path object."""
-    output_path = Path(destination)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    return output_path
+_PDF_MIN_WIDTH_PT = 30.0
 
 
 class CsvRenderer(Renderer):
@@ -83,7 +56,7 @@ class CsvRenderer(Renderer):
         spec: ReportSpec,
         destination: str | Path,
     ) -> Path:
-        output_path = _prepare_destination(destination)
+        output_path = prepare_destination(destination)
         options = CsvRenderOptions.from_metadata(spec.metadata)
 
         with output_path.open("w", newline="", encoding=spec.encoding) as handle:
@@ -106,12 +79,10 @@ class XlsxRenderer(Renderer):
         spec: ReportSpec,
         destination: str | Path,
     ) -> Path:
-        output_path = _prepare_destination(destination)
+        output_path = prepare_destination(destination)
         options = XlsxRenderOptions.from_metadata(spec.metadata)
 
-        needs_override = _needs_width_override(options)
-
-        if needs_override:
+        if _needs_width_override(options):
             data, tracker = _get_xlsx_row_stream(rows, spec, options)
             FastExcel(str(output_path), autofit=False).sheet(
                 options.sheet_name, data
@@ -122,7 +93,6 @@ class XlsxRenderer(Renderer):
                 options,
             )
         else:
-            # Pure autofit — let Rust handle everything, no post-processing.
             use_autofit = options.width_mode != "manual"
             FastExcel(str(output_path), autofit=use_autofit).sheet(
                 options.sheet_name, rows
@@ -135,7 +105,7 @@ def _get_xlsx_row_stream(
     rows: Iterable[Mapping[str, Any]],
     spec: ReportSpec,
     options: XlsxRenderOptions,
-) -> tuple[Iterable[Mapping[str, Any]], _WidthTracker | None]:
+) -> tuple[Iterable[Mapping[str, Any]], WidthTracker | None]:
     """Determine the optimal row stream and tracker instance for XLSX rendering."""
     if options.width_mode not in {"auto", "mixed"}:
         return rows, None
@@ -145,17 +115,15 @@ def _get_xlsx_row_stream(
         if col.width is not None
     }
 
-    # Only instantiate tracker if there are columns in the current report that need auto-width.
     tracked_labels = [label for label in spec.labels if label not in exclude]
-
     if not tracked_labels:
         return rows, None
 
-    tracker = _WidthTracker(rows, spec.labels, exclude_labels=exclude)
+    tracker = WidthTracker(rows, spec.labels, exclude_labels=exclude)
     return tracker, tracker
 
 
-# Common style commands to avoid duplication between header and body
+# Common style commands to avoid duplication
 _PDF_COMMON_STYLE = [
     ("GRID", (0, 0), (-1, -1), 0.5, _PDF_GRID_COLOR),
     ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -191,7 +159,7 @@ class PdfRenderer(Renderer):
         spec: ReportSpec,
         destination: str | Path,
     ) -> Path:
-        output_path = _prepare_destination(destination)
+        output_path = prepare_destination(destination)
         labels = spec.labels
         styles = getSampleStyleSheet()
         normal_style = styles["Normal"]
@@ -205,24 +173,20 @@ class PdfRenderer(Renderer):
             bottomMargin=1.5 * cm,
         )
 
-        # 1. Sample and Width Calculation
         row_iter = iter(rows)
         sample = list(itertools.islice(row_iter, 100))
         all_rows_iter = itertools.chain(sample, row_iter)
 
         sample_data = [
-            [_get_cell_value(row, label) for label in labels] for row in sample
+            [get_cell_value(row, label) for label in labels] for row in sample
         ]
         col_widths = _resolve_pdf_column_widths(labels, sample_data, doc.width)
 
-        # 2. Header Setup
         header_table = self._create_header_table(labels, col_widths, normal_style)
         _, header_height = header_table.wrap(doc.width, doc.height)
 
-        # 3. Template and Frame Setup
         self._setup_pages(doc, header_table, header_height)
 
-        # 4. Body Rendering
         pdf_opts = PdfRenderOptions.from_metadata(spec.metadata)
         chunk_size = pdf_opts.chunk_size
 
@@ -231,7 +195,6 @@ class PdfRenderer(Renderer):
             ("FONTSIZE", (0, 0), (-1, -1), 9),
         ]
 
-        # Pre-instantiate TableStyles to avoid allocation in generator loop
         style_even = TableStyle(
             base_style_cmds + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, _PDF_STRIPE_COLOR])]
         )
@@ -240,12 +203,8 @@ class PdfRenderer(Renderer):
         )
 
         def generate_chunks() -> Iterable[Table | Spacer]:
-            # Pre-bind variables and function references for performance
             threshold = pdf_opts.paragraph_threshold
-            _len, _str, _Paragraph = len, str, Paragraph
             fetcher = itemgetter(*labels)
-            
-            # For a single label, itemgetter returns a scalar, otherwise a tuple.
             single_label = len(labels) == 1
             is_even = True
             
@@ -256,16 +215,15 @@ class PdfRenderer(Renderer):
 
                 table_rows = []
                 for row in chunk:
-                    # Multi-field retrieval in C
                     values = fetcher(row)
                     if single_label:
                         values = (values,)
                         
                     row_data = []
                     for val in values:
-                        v_str = _str(val) if val is not None else ""
-                        if _len(v_str) > threshold or "\n" in v_str:
-                            row_data.append(_Paragraph(v_str, normal_style))
+                        v_str = str(val) if val is not None else ""
+                        if len(v_str) > threshold or "\n" in v_str:
+                            row_data.append(Paragraph(v_str, normal_style))
                         else:
                             row_data.append(v_str)
                     table_rows.append(row_data)
@@ -321,74 +279,13 @@ class PdfRenderer(Renderer):
         )
 
 
-def _get_cell_value(row: Mapping[str, Any], label: str) -> str:
-    val = row.get(label)
-    return str(val) if val is not None else ""
-
-
 def default_renderer_registry() -> dict[OutputFormat, Renderer]:
     return {"csv": CsvRenderer(), "xlsx": XlsxRenderer(), "pdf": PdfRenderer()}
 
 
-class _WidthTracker:
-    """Generator wrapper that tracks max string length per column while streaming rows."""
-
-    __slots__ = ("_rows", "_labels", "max_lens")
-
-    def __init__(
-        self,
-        rows: Iterable[Mapping[str, Any]],
-        labels: Sequence[str],
-        exclude_labels: set[str] | None = None,
-    ) -> None:
-        self._rows = rows
-        # Filter labels to only track those that need auto-width.
-        exclude = exclude_labels or set()
-        self._labels = tuple(label for label in labels if label not in exclude)
-        self.max_lens: dict[str, int] = {label: len(label) for label in labels}
-
-    def __iter__(self) -> Iterator[Mapping[str, Any]]:
-        # Local variable access is faster than attribute access in tight loops.
-        labels = self._labels
-        if not labels:
-            yield from self._rows
-            return
-
-        # Optimization: Move built-ins and indexing overhead out of the hot loop.
-        fetcher = itemgetter(*labels)
-        indices = list(range(len(labels)))
-        current_max_lens = [self.max_lens[label] for label in labels]
-        _len, _type, _str, _str_type = len, type, str, str
-
-        for row in self._rows:
-            # itemgetter(*labels)(row) is faster than individual row[label] lookups.
-            # It returns a single value if len(labels) == 1, else a tuple.
-            values = fetcher(row)
-            if _len(labels) == 1:
-                values = (values,)
-
-            for i in indices:
-                val = values[i]
-                if val is None:
-                    continue
-
-                # Avoid str() if already a string; type() check is faster.
-                val_len = _len(val) if _type(val) is _str_type else _len(_str(val))
-                if val_len > current_max_lens[i]:
-                    current_max_lens[i] = val_len
-            yield row
-
-        # Synchronize back to the dictionary for use in patching.
-        self.max_lens.update(zip(labels, current_max_lens))
-
-
 def _needs_width_override(options: XlsxRenderOptions) -> bool:
     """Return True when per-column width overrides require DOM patching."""
-    if options.width_mode == "manual":
-        return True
-    if options.columns:
-        return True
-    return False
+    return options.width_mode == "manual" or bool(options.columns)
 
 
 def _build_cols_element(
@@ -411,6 +308,8 @@ def _build_cols_element(
 
 
 _SHEET_PATH = "xl/worksheets/sheet1.xml"
+_SHEET_DATA_RE = re.compile(b"<[^:>]*:?sheetData")
+_COLS_CLEAN_RE = re.compile(b"<[^:>]*:?cols[^>]*?(/>|.*?</[^:>]*:?cols>)", flags=re.DOTALL)
 
 
 def _stream_patch_column_widths(
@@ -419,85 +318,14 @@ def _stream_patch_column_widths(
     max_lens: dict[str, int],
     options: XlsxRenderOptions,
 ) -> None:
-    """Patch column widths in XLSX using streaming — memory efficient."""
+    """Patch column widths in XLSX using streaming."""
     cols_el = _build_cols_element(labels, max_lens, options)
 
+    def patcher(instream: Any, outstream: Any) -> None:
+        stream_patch_sheet_xml(instream, outstream, cols_el)
+
     with atomic_write(output_path) as tmp_path:
-        _rebuild_xlsx_archive(output_path, tmp_path, cols_el)
-
-
-def _rebuild_xlsx_archive(src: Path, dst: Path, cols_el: ET.Element) -> None:
-    """Read source XLSX and write to destination, patching the worksheet XML in transit."""
-    with zipfile.ZipFile(src, "r") as reader, zipfile.ZipFile(
-        dst, "w", compression=zipfile.ZIP_DEFLATED
-    ) as writer:
-        for item in reader.infolist():
-            with reader.open(item) as in_file, writer.open(item, "w") as out_file:
-                if item.filename == _SHEET_PATH:
-                    _stream_patch_sheet_xml(in_file, out_file, cols_el)
-                else:
-                    # Optimization: Use a larger buffer (1MB) to reduce syscalls.
-                    shutil.copyfileobj(in_file, out_file, length=1024 * 1024)
-
-
-# Pre-compile regexes for performance and robustness
-_SHEET_DATA_RE = re.compile(b"<[^:>]*:?sheetData")
-# Matches <cols> or <x:cols> with any attributes, including self-closing
-_COLS_CLEAN_RE = re.compile(b"<[^:>]*:?cols[^>]*?(/>|.*?</[^:>]*:?cols>)", flags=re.DOTALL)
-_PATCH_SEARCH_OVERLAP = 128
-
-
-def _stream_patch_sheet_xml(
-    instream: IO[bytes], outstream: IO[bytes], cols_el: ET.Element
-) -> None:
-    """Stream sheet XML, insert/replace <cols> before <sheetData> using a chunked buffer."""
-    # Serialize the <cols> element. We don't want the XML declaration.
-    cols_bytes = ET.tostring(cols_el, encoding="UTF-8")
-
-    buffer = bytearray()
-    chunk_size = 65536  # 64KB
-    max_buffer_size = 5 * 1024 * 1024  # 5MB safety limit
-
-    while True:
-        chunk = instream.read(chunk_size)
-        if not chunk:
-            # Fallback: '<sheetData' tag not found.
-            raise RenderError("XLSX patch failed: <sheetData> tag not found in worksheet XML.")
-
-        buffer.extend(chunk)
-
-        if len(buffer) > max_buffer_size:
-            # Safety limit to prevent OOM on malformed XML.
-            raise RenderError(
-                f"XLSX patch failed: worksheet metadata exceeds {max_buffer_size // 1024 // 1024}MB limit."
-            )
-
-        # Look for the start of the main tag in the current chunk + a safety overlap
-        # from the end of the previous buffer, to avoid O(N^2) searches and
-        # handle the "boundary bug" where the tag is split between chunks.
-        search_start = max(0, len(buffer) - len(chunk) - _PATCH_SEARCH_OVERLAP)
-        match = _SHEET_DATA_RE.search(buffer, search_start)
-        if not match:
-            continue
-
-        # Breakpoint found. Split the file before insertion.
-        split_idx = match.start()
-        # Use memoryview to avoid large string copies during slicing and cleaning.
-        view = memoryview(buffer)
-        head = view[:split_idx]
-        tail = view[split_idx:]
-
-        # Clean any existing <cols> blocks from the head.
-        clean_head = _COLS_CLEAN_RE.sub(b"", head.tobytes())
-
-        # Write sections in the correct order required by XLSX
-        outstream.write(clean_head)
-        outstream.write(cols_bytes)
-        outstream.write(tail)
-        break
-
-    # Efficiently transfer the rest of the file.
-    shutil.copyfileobj(instream, outstream)
+        patch_zip_xml(output_path, tmp_path, _SHEET_PATH, patcher)
 
 
 def _resolve_width_for_label(
@@ -525,35 +353,25 @@ def _resolve_pdf_column_widths(
     data_rows: list[list[str]],
     available_width: float,
 ) -> tuple[float, ...]:
-    """Distribute available page width proportionally based on max content length per column.
-
-    Content length is capped to avoid a single column monopolising the page.
-    Each column also gets a minimum width to ensure padding fits.
-    """
+    """Distribute available page width proportionally based on max content length per column."""
     if not labels:
         return ()
 
-    # 1. Get max length per column (header + sampling rows)
     max_content_lens = [len(label) for label in labels]
     if data_rows:
         for i, col_data in enumerate(zip(*data_rows)):
             max_content_lens[i] = max(max_content_lens[i], max(map(len, col_data)))
 
-    # Clamp to reasonable bounds to avoid extreme proportions
     max_content_lens = [clamp(w, 1, _PDF_MAX_CHARS) for w in max_content_lens]
 
-    # 2. Initial proportional distribution
     total_chars = sum(max_content_lens)
     widths = [available_width * (w / total_chars) for w in max_content_lens]
 
-    # 3. Enforce minimum width by redistributing surplus from larger columns
     deficit = sum(max(0.0, _PDF_MIN_WIDTH_PT - w) for w in widths)
     if deficit <= 0:
         return tuple(widths)
 
     surplus_total = sum(max(0.0, w - _PDF_MIN_WIDTH_PT) for w in widths)
-    # Ratio of deficit to subtract from each column's surplus.
-    # min(..., 1.0) ensures we never subtract more than the surplus itself.
     ratio = min(deficit / surplus_total, 1.0) if surplus_total > 0 else 0.0
 
     return tuple(
