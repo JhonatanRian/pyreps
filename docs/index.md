@@ -100,6 +100,6 @@ O pipeline é **100% streaming** para CSV e XLSX — cada registro é processado
 
 ## Links
 
-- :fontawesome-brands-github: [Código fonte](https://github.com/jhonatan/py-reports)
+- :fontawesome-brands-github: [Código fonte](https://github.com/jhonatan/pyreps)
 - :fontawesome-brands-python: [PyPI](https://pypi.org/project/pyreps/)
-- :material-bug: [Issues](https://github.com/jhonatan/py-reports/issues)
+- :material-bug: [Issues](https://github.com/jhonatan/pyreps/issues)
