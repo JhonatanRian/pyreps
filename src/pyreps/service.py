@@ -13,7 +13,7 @@ from .exceptions import InputAdapterError, ReportError
 from .mapping import map_records
 from .renderers import default_renderer_registry
 
-logger = logging.getLogger("py_reports")
+logger = logging.getLogger("pyreps")
 
 
 @contextmanager

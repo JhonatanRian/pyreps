@@ -2,12 +2,12 @@
 
 Função principal da biblioteca — o ponto de entrada para gerar qualquer relatório.
 
-::: py_reports.service.generate_report
+::: pyreps.service.generate_report
 
 ## Exemplo
 
 ```python
-from py_reports import ColumnSpec, ReportSpec, generate_report
+from pyreps import ColumnSpec, ReportSpec, generate_report
 
 spec = ReportSpec(
     output_format="xlsx",

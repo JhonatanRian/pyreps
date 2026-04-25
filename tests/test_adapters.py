@@ -9,8 +9,8 @@ from typing import Any
 
 import pytest
 
-from py_reports.adapters import JsonAdapter, JsonStreamingAdapter, ListDictAdapter, SqlAdapter
-from py_reports.exceptions import InputAdapterError
+from pyreps.adapters import JsonAdapter, JsonStreamingAdapter, ListDictAdapter, SqlAdapter
+from pyreps.exceptions import InputAdapterError
 
 
 class MockDBCursor:

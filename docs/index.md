@@ -60,7 +60,7 @@ uv add pyreps
 ## Exemplo Rápido
 
 ```python
-from py_reports import ColumnSpec, ReportSpec, generate_report
+from pyreps import ColumnSpec, ReportSpec, generate_report
 
 data = [
     {"id": 1, "cliente": {"nome": "Ana"}, "total": 100.50},

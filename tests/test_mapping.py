@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from py_reports import ColumnSpec, ReportSpec
-from py_reports.exceptions import MappingError
-from py_reports.mapping import map_records
+from pyreps import ColumnSpec, ReportSpec
+from pyreps.exceptions import MappingError
+from pyreps.mapping import map_records
 
 
 def test_map_records_maps_nested_paths() -> None:

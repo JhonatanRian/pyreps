@@ -3,8 +3,8 @@ from __future__ import annotations
 import pytest
 from types import MappingProxyType
 
-from py_reports.exceptions import ReportError
-from py_reports.xlsx_options import XlsxColumnOptions, XlsxRenderOptions
+from pyreps.exceptions import ReportError
+from pyreps.xlsx_options import XlsxColumnOptions, XlsxRenderOptions
 
 
 def test_xlsx_options_sheet_name_validations() -> None:

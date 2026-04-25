@@ -12,9 +12,9 @@
 
 ### Architecture
 The project follows a modular pipeline architecture:
-1.  **InputAdapters** (`src/py_reports/adapters.py`): Normalize various data sources (`list[dict]`, JSON, SQL) into an iterable of mapping records.
-2.  **Mapping & Coercion** (`src/py_reports/mapping.py`, `src/py_reports/coercion.py`): Transform raw records into a normalized format based on a `ReportSpec`, applying type coercion and custom formatters.
-3.  **Renderers** (`src/py_reports/renderers.py`): Convert the normalized rows into the final output format.
+1.  **InputAdapters** (`src/pyreps/adapters.py`): Normalize various data sources (`list[dict]`, JSON, SQL) into an iterable of mapping records.
+2.  **Mapping & Coercion** (`src/pyreps/mapping.py`, `src/pyreps/coercion.py`): Transform raw records into a normalized format based on a `ReportSpec`, applying type coercion and custom formatters.
+3.  **Renderers** (`src/pyreps/renderers.py`): Convert the normalized rows into the final output format.
     - `CsvRenderer`: Uses the Python `csv` standard library.
     - `XlsxRenderer`: Uses `rustpy-xlsxwriter` and custom ZIP-patching for streaming column widths.
     - `PdfRenderer`: Uses `ReportLab` for layout-aware PDF generation.
@@ -55,7 +55,7 @@ uv run mkdocs build  # Build static site
 - **Tooling**: Uses `pytest` for test execution.
 
 ### Project Structure
-- `src/py_reports/`: Core source code.
+- `src/pyreps/`: Core source code.
 - `tests/`: Comprehensive test suite.
 - `docs/`: Markdown-based documentation.
 - `benchmarks/`: Performance measurement scripts.

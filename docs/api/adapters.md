@@ -4,23 +4,23 @@ Adapters normalizam fontes de dados diversas em iteráveis de registros.
 
 ## ListDictAdapter
 
-::: py_reports.adapters.ListDictAdapter
+::: pyreps.adapters.ListDictAdapter
 
 ## JsonAdapter
 
-::: py_reports.adapters.JsonAdapter
+::: pyreps.adapters.JsonAdapter
 
 ## JsonStreamingAdapter
 
-::: py_reports.adapters.JsonStreamingAdapter
+::: pyreps.adapters.JsonStreamingAdapter
 
 ## SqlAdapter
 
-::: py_reports.adapters.SqlAdapter
+::: pyreps.adapters.SqlAdapter
 
 ## InputAdapter (Protocol)
 
-::: py_reports.contracts.InputAdapter
+::: pyreps.contracts.InputAdapter
 
 ## Custom Adapter
 

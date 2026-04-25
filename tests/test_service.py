@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from py_reports import ColumnSpec, ReportSpec, generate_report
-from py_reports.contracts import InputAdapter, Renderer
-from py_reports.exceptions import InputAdapterError, ReportError
-from py_reports.renderers import default_renderer_registry
+from pyreps import ColumnSpec, ReportSpec, generate_report
+from pyreps.contracts import InputAdapter, Renderer
+from pyreps.exceptions import InputAdapterError, ReportError
+from pyreps.renderers import default_renderer_registry
 
 
 def test_generate_csv_from_list_dict(tmp_path: Path) -> None:
@@ -130,7 +130,7 @@ def test_missing_renderer_registration_raises_report_error(tmp_path: Path) -> No
 
 
 def test_generate_report_emits_logs(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
-    caplog.set_level("DEBUG", logger="py_reports")
+    caplog.set_level("DEBUG", logger="pyreps")
     data = [{"id": "1"}]
     spec = ReportSpec(columns=[ColumnSpec(label="ID", source="id")])
     destination = tmp_path / "logged.csv"

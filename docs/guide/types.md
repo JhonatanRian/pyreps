@@ -16,7 +16,7 @@ O `ColumnSpec` aceita um parâmetro `type` opcional que realiza **coerção auto
 ## Uso Básico
 
 ```python
-from py_reports import ColumnSpec, ReportSpec
+from pyreps import ColumnSpec, ReportSpec
 
 spec = ReportSpec(
     output_format="csv",

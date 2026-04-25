@@ -1,9 +1,9 @@
 
 import pytest
 import re
-from py_reports import __version__
-from py_reports.xlsx_options import XlsxRenderOptions, XlsxColumnOptions
-from py_reports.exceptions import ReportError
+from pyreps import __version__
+from pyreps.xlsx_options import XlsxRenderOptions, XlsxColumnOptions
+from pyreps.exceptions import ReportError
 
 def test_version_access() -> None:
     assert isinstance(__version__, str)

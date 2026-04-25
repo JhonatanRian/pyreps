@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from py_reports import ColumnSpec, ReportSpec, generate_report
+from pyreps import ColumnSpec, ReportSpec, generate_report
 
 
 def _make_spec(**kwargs) -> ReportSpec:
@@ -109,7 +109,7 @@ def test_pdf_odd_chunk_size_alternating_backgrounds(tmp_path: Path) -> None:
 
 def test_resolve_pdf_column_widths_robustness() -> None:
     """Verify that _resolve_pdf_column_widths handles datasets that would cause negative widths."""
-    from py_reports.renderers import _resolve_pdf_column_widths
+    from pyreps.renderers import _resolve_pdf_column_widths
 
     # Scenario: 7 columns where 1 has a tiny surplus and 6 have a deficit.
     # available_width = 200, _MIN_WIDTH_PT = 30.

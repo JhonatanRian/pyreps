@@ -13,7 +13,7 @@ import time
 import tracemalloc
 from pathlib import Path
 
-from py_reports import ColumnSpec, ReportSpec, generate_report
+from pyreps import ColumnSpec, ReportSpec, generate_report
 
 
 # ── Dataset generator (never materializes full list) ─────────────────

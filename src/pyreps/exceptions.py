@@ -5,7 +5,7 @@ from typing import Any, Callable, TypeVar
 
 
 class ReportError(Exception):
-    """Base exception for py_reports."""
+    """Base exception for pyreps."""
 
 
 class InputAdapterError(ReportError):

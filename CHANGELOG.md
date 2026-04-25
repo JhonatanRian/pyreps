@@ -8,15 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.5] - 2026-04-24
 
 ### Added
-- Created `src/py_reports/utils/db.py` to centralize database connection logic and normalize DB-API 2.0 driver inconsistencies (heuristics for closed connections).
-- Introduced `src/py_reports/utils/xml_zip.py` to modularize low-level XML patching within ZIP archives, improving the maintainability of the XLSX renderer.
+- Created `src/pyreps/utils/db.py` to centralize database connection logic and normalize DB-API 2.0 driver inconsistencies (heuristics for closed connections).
+- Introduced `src/pyreps/utils/xml_zip.py` to modularize low-level XML patching within ZIP archives, improving the maintainability of the XLSX renderer.
 - Added `ensure_mapping_stream` utility in `records.py` to provide optimized, fail-fast stream validation.
 
 ### Changed
-- Refactored `src/py_reports/adapters.py` to use modular utilities, removing infrastructure code from business logic.
-- Refactored `src/py_reports/renderers.py` to delegate file preparation, error wrapping, and record processing to shared utilities.
-- Centralized `wrap_render_error` decorator in `src/py_reports/exceptions.py`.
-- Moved `prepare_destination` to `src/py_reports/utils/files.py`.
+- Refactored `src/pyreps/adapters.py` to use modular utilities, removing infrastructure code from business logic.
+- Refactored `src/pyreps/renderers.py` to delegate file preparation, error wrapping, and record processing to shared utilities.
+- Centralized `wrap_render_error` decorator in `src/pyreps/exceptions.py`.
+- Moved `prepare_destination` to `src/pyreps/utils/files.py`.
 - Improved code legibility in `PdfRenderer` by removing redundant micro-optimization aliases.
 
 ### Performance
@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Parameterized PDF paragraph heuristic with new `paragraph_threshold` option in `PdfRenderOptions`.
-- Exported `PdfRenderOptions` in the root `py_reports` package for API consistency.
+- Exported `PdfRenderOptions` in the root `pyreps` package for API consistency.
 - Introduced `coerce_int` utility for centralized and robust integer validation in metadata parsing.
 
 ### Fixed
@@ -55,7 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.3] - 2026-04-22
 
 ### Added
-- `TupleRecord` utility in `src/py_reports/utils/records.py` providing a lightweight `Mapping` wrapper for tuple-based data.
+- `TupleRecord` utility in `src/pyreps/utils/records.py` providing a lightweight `Mapping` wrapper for tuple-based data.
 
 ### Performance
 - Optimized `SqlAdapter` to use `TupleRecord`, eliminating per-row dictionary allocations (`dict(zip)`) and significantly reducing memory pressure during large-scale SQL data streaming.

@@ -39,7 +39,7 @@ graph LR
 ## Gerando um CSV
 
 ```python
-from py_reports import ColumnSpec, ReportSpec, generate_report
+from pyreps import ColumnSpec, ReportSpec, generate_report
 
 data = [
     {"id": 1, "nome": "Ana Silva", "valor": 1500.00},

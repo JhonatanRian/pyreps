@@ -4,9 +4,9 @@ from datetime import date, datetime
 
 import pytest
 
-from py_reports import ColumnSpec, ReportSpec
-from py_reports.exceptions import CoercionError, MappingError
-from py_reports.mapping import map_records
+from pyreps import ColumnSpec, ReportSpec
+from pyreps.exceptions import CoercionError, MappingError
+from pyreps.mapping import map_records
 
 
 def test_coercion_error_hierarchy() -> None:
@@ -340,7 +340,7 @@ def test_concurrent_coercion_is_thread_safe() -> None:
 
 def test_coerce_value_without_cache_still_works() -> None:
     """Direct coerce_value calls without cache parameter remain functional."""
-    from py_reports.coercion import coerce_value
+    from pyreps.coercion import coerce_value
 
     result = coerce_value("2025-06-15", "date", source="v", record_index=0)
     assert result == date(2025, 6, 15)

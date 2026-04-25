@@ -4,7 +4,7 @@ Contratos centrais que definem a estrutura e o comportamento do relatório.
 
 ## ColumnSpec
 
-::: py_reports.contracts.ColumnSpec
+::: pyreps.contracts.ColumnSpec
 
 ## ColumnType
 
@@ -16,7 +16,7 @@ Veja [Tipos Declarativos](../guide/types.md) para detalhes de coerção.
 
 ## ReportSpec
 
-::: py_reports.contracts.ReportSpec
+::: pyreps.contracts.ReportSpec
 
 ## Tipos Auxiliares
 

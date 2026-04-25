@@ -57,7 +57,7 @@ Aceita strings JSON, bytes, dicts e listas. Parsing via **orjson** (Rust, ~6x ma
 Para arquivos JSON gigantescos (500MB+) ou streams I/O, utilize o `JsonStreamingAdapter`. Ele utiliza a biblioteca **ijson** para ler o arquivo iterativamente, mantendo o consumo de memória constante.
 
 ```python
-from py_reports import JsonStreamingAdapter, generate_report
+from pyreps import JsonStreamingAdapter, generate_report
 
 # Lendo de um caminho de arquivo
 generate_report(
@@ -88,7 +88,7 @@ Para queries SQL, use o `SqlAdapter` explicitamente:
 
 ```python
 import sqlite3
-from py_reports import SqlAdapter, generate_report
+from pyreps import SqlAdapter, generate_report
 
 conn = sqlite3.connect("app.db")
 
@@ -115,7 +115,7 @@ Implemente o protocolo `InputAdapter` para qualquer fonte de dados:
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from py_reports.contracts import InputAdapter, Record
+from pyreps.contracts import InputAdapter, Record
 
 
 class MongoAdapter(InputAdapter):

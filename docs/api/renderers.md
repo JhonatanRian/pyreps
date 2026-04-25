@@ -4,19 +4,19 @@ Renderers transformam dados mapeados em arquivos de saída.
 
 ## CsvRenderer
 
-::: py_reports.renderers.CsvRenderer
+::: pyreps.renderers.CsvRenderer
 
 ## XlsxRenderer
 
-::: py_reports.renderers.XlsxRenderer
+::: pyreps.renderers.XlsxRenderer
 
 ## PdfRenderer
 
-::: py_reports.renderers.PdfRenderer
+::: pyreps.renderers.PdfRenderer
 
 ## Renderer (Protocol)
 
-::: py_reports.contracts.Renderer
+::: pyreps.contracts.Renderer
 
 ## Registry
 
