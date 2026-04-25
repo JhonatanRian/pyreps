@@ -41,17 +41,19 @@ def map_records(
             coercer_fn = get_coercer_fn(column.type, column.source, cache)
 
         is_flat = len(column._source_parts) == 1
-        processors.append(ColumnProcessor(
-            label=column.label,
-            parts=column._source_parts,
-            is_flat=is_flat,
-            flat_key=column._source_parts[0] if is_flat else None,
-            required=column.required,
-            default=column.default,
-            coercer_fn=coercer_fn,
-            formatter=column.formatter,
-            source=column.source,
-        ))
+        processors.append(
+            ColumnProcessor(
+                label=column.label,
+                parts=column._source_parts,
+                is_flat=is_flat,
+                flat_key=column._source_parts[0] if is_flat else None,
+                required=column.required,
+                default=column.default,
+                coercer_fn=coercer_fn,
+                formatter=column.formatter,
+                source=column.source,
+            )
+        )
 
     for index, record in enumerate(records):
         row: dict[str, Any] = {}

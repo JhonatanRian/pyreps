@@ -17,7 +17,9 @@ logger = logging.getLogger("pyreps")
 
 
 @contextmanager
-def _report_transaction(destination: Path, output_format: str) -> Generator[None, None, None]:
+def _report_transaction(
+    destination: Path, output_format: str
+) -> Generator[None, None, None]:
     """Encapsula telemetria e cleanup transacional para geração de relatórios."""
     start_time = time.perf_counter()
     try:

@@ -13,7 +13,7 @@ def atomic_write(destination: Path | str, suffix: str | None = None) -> Iterator
     On exception, cleans up the temporary file.
     """
     dest = Path(destination)
-    
+
     with tempfile.NamedTemporaryFile(
         dir=dest.parent,
         prefix=f".{dest.name}.",

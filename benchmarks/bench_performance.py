@@ -7,7 +7,6 @@ for each output format across different dataset sizes.
 from __future__ import annotations
 
 import gc
-import sys
 import tempfile
 import time
 import tracemalloc
@@ -17,6 +16,7 @@ from pyreps import ColumnSpec, ReportSpec, generate_report
 
 
 # ── Dataset generator (never materializes full list) ─────────────────
+
 
 def _generate_records(n: int):
     """Yield n records lazily — zero upfront memory."""
@@ -48,7 +48,6 @@ SPEC_PDF = ReportSpec(columns=COLUMNS, output_format="pdf")
 def _run_benchmark(fmt: str, spec: ReportSpec, n: int, tmpdir: Path) -> dict:
     gc.collect()
     tracemalloc.start()
-    snapshot_before = tracemalloc.take_snapshot()
 
     t0 = time.perf_counter()
 

@@ -21,11 +21,15 @@ def test_generate_csv_from_list_dict(tmp_path: Path) -> None:
         columns=[
             ColumnSpec(label="ID", source="id", required=True),
             ColumnSpec(label="Cliente", source="customer.name", required=True),
-            ColumnSpec(label="Total", source="total", formatter=lambda value: f"{value:.2f}"),
+            ColumnSpec(
+                label="Total", source="total", formatter=lambda value: f"{value:.2f}"
+            ),
         ],
     )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "sales.csv")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "sales.csv"
+    )
 
     assert output.exists()
     assert output.read_text(encoding="utf-8").splitlines() == [
@@ -49,7 +53,9 @@ def test_generate_csv_from_json_payload(tmp_path: Path) -> None:
         ]
     )
 
-    output = generate_report(data_source=payload, spec=spec, destination=tmp_path / "customers.csv")
+    output = generate_report(
+        data_source=payload, spec=spec, destination=tmp_path / "customers.csv"
+    )
 
     assert output.read_text(encoding="utf-8").splitlines() == [
         "ID,Cliente",
@@ -68,7 +74,9 @@ def test_generate_csv_uses_delimiter_from_metadata(tmp_path: Path) -> None:
         metadata={"csv": {"delimiter": ";"}},
     )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "delimited.csv")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "delimited.csv"
+    )
 
     assert output.read_text(encoding="utf-8").splitlines() == [
         "ID;Cliente",
@@ -80,7 +88,9 @@ def test_non_supported_data_source_requires_explicit_adapter(tmp_path: Path) -> 
     spec = ReportSpec(columns=[ColumnSpec(label="ID", source="id")])
 
     with pytest.raises(InputAdapterError):
-        generate_report(data_source=123, spec=spec, destination=tmp_path / "invalid.csv")
+        generate_report(
+            data_source=123, spec=spec, destination=tmp_path / "invalid.csv"
+        )
 
 
 def test_can_inject_custom_input_adapter(tmp_path: Path) -> None:
@@ -106,9 +116,13 @@ def test_default_registry_exposes_all_output_formats() -> None:
 
 def test_pdf_renderer_generates_valid_file(tmp_path: Path) -> None:
     data = [{"id": "1"}]
-    spec = ReportSpec(output_format="pdf", columns=[ColumnSpec(label="ID", source="id")])
+    spec = ReportSpec(
+        output_format="pdf", columns=[ColumnSpec(label="ID", source="id")]
+    )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "report.pdf")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "report.pdf"
+    )
 
     assert output.exists()
     assert output.suffix == ".pdf"
@@ -129,7 +143,9 @@ def test_missing_renderer_registration_raises_report_error(tmp_path: Path) -> No
         )
 
 
-def test_generate_report_emits_logs(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_generate_report_emits_logs(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     caplog.set_level("DEBUG", logger="pyreps")
     data = [{"id": "1"}]
     spec = ReportSpec(columns=[ColumnSpec(label="ID", source="id")])
@@ -142,7 +158,9 @@ def test_generate_report_emits_logs(tmp_path: Path, caplog: pytest.LogCaptureFix
     assert f"destination={destination}" in caplog.text
 
 
-def test_generate_report_removes_partial_file_on_error(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+def test_generate_report_removes_partial_file_on_error(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
     class CrashingRenderer(Renderer):
         def render(self, rows, spec, destination):
             path = Path(destination)
@@ -150,7 +168,9 @@ def test_generate_report_removes_partial_file_on_error(tmp_path: Path, caplog: p
             raise RuntimeError("something went wrong")
 
     data = [{"id": "1"}]
-    spec = ReportSpec(output_format="crash", columns=[ColumnSpec(label="ID", source="id")])
+    spec = ReportSpec(
+        output_format="crash", columns=[ColumnSpec(label="ID", source="id")]
+    )
     destination = tmp_path / "fail.txt"
     registry = {"crash": CrashingRenderer()}
 

@@ -88,7 +88,8 @@ class XlsxRenderer(Renderer):
                 options.sheet_name, data
             ).save()
             _stream_patch_column_widths(
-                output_path, spec.labels,
+                output_path,
+                spec.labels,
                 tracker.max_lens if tracker else {},
                 options,
             )
@@ -111,8 +112,7 @@ def _get_xlsx_row_stream(
         return rows, None
 
     exclude = {
-        label for label, col in (options.columns or {}).items()
-        if col.width is not None
+        label for label, col in (options.columns or {}).items() if col.width is not None
     }
 
     tracked_labels = [label for label in spec.labels if label not in exclude]
@@ -196,10 +196,12 @@ class PdfRenderer(Renderer):
         ]
 
         style_even = TableStyle(
-            base_style_cmds + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, _PDF_STRIPE_COLOR])]
+            base_style_cmds
+            + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, _PDF_STRIPE_COLOR])]
         )
         style_odd = TableStyle(
-            base_style_cmds + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [_PDF_STRIPE_COLOR, colors.white])]
+            base_style_cmds
+            + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [_PDF_STRIPE_COLOR, colors.white])]
         )
 
         def generate_chunks() -> Iterable[Table | Spacer]:
@@ -207,7 +209,7 @@ class PdfRenderer(Renderer):
             fetcher = itemgetter(*labels)
             single_label = len(labels) == 1
             is_even = True
-            
+
             while True:
                 chunk = list(itertools.islice(all_rows_iter, chunk_size))
                 if not chunk:
@@ -218,7 +220,7 @@ class PdfRenderer(Renderer):
                     values = fetcher(row)
                     if single_label:
                         values = (values,)
-                        
+
                     row_data = []
                     for val in values:
                         v_str = str(val) if val is not None else ""
@@ -239,7 +241,9 @@ class PdfRenderer(Renderer):
         doc.build_from_generator(generate_chunks())
         return output_path
 
-    def _create_header_table(self, labels: Sequence[str], col_widths: list[float], style: ParagraphStyle) -> Table:
+    def _create_header_table(
+        self, labels: Sequence[str], col_widths: list[float], style: ParagraphStyle
+    ) -> Table:
         header_table = Table(
             [[Paragraph(f"<b>{label}</b>", style) for label in labels]],
             colWidths=col_widths,
@@ -257,11 +261,17 @@ class PdfRenderer(Renderer):
         )
         return header_table
 
-    def _setup_pages(self, doc: StreamingDocTemplate, header_table: Table, header_height: float) -> None:
-        def draw_header(canv: canvas.Canvas, doc_template: StreamingDocTemplate) -> None:
+    def _setup_pages(
+        self, doc: StreamingDocTemplate, header_table: Table, header_height: float
+    ) -> None:
+        def draw_header(
+            canv: canvas.Canvas, doc_template: StreamingDocTemplate
+        ) -> None:
             header_table.canv = canv
             header_table.drawOn(
-                canv, doc_template.leftMargin, doc_template.height + doc_template.bottomMargin - header_height
+                canv,
+                doc_template.leftMargin,
+                doc_template.height + doc_template.bottomMargin - header_height,
             )
 
         frame = Frame(
@@ -309,7 +319,9 @@ def _build_cols_element(
 
 _SHEET_PATH = "xl/worksheets/sheet1.xml"
 _SHEET_DATA_RE = re.compile(b"<[^:>]*:?sheetData")
-_COLS_CLEAN_RE = re.compile(b"<[^:>]*:?cols[^>]*?(/>|.*?</[^:>]*:?cols>)", flags=re.DOTALL)
+_COLS_CLEAN_RE = re.compile(
+    b"<[^:>]*:?cols[^>]*?(/>|.*?</[^:>]*:?cols>)", flags=re.DOTALL
+)
 
 
 def _stream_patch_column_widths(
@@ -375,7 +387,8 @@ def _resolve_pdf_column_widths(
     ratio = min(deficit / surplus_total, 1.0) if surplus_total > 0 else 0.0
 
     return tuple(
-        _PDF_MIN_WIDTH_PT if w < _PDF_MIN_WIDTH_PT
+        _PDF_MIN_WIDTH_PT
+        if w < _PDF_MIN_WIDTH_PT
         else w - (w - _PDF_MIN_WIDTH_PT) * ratio
         for w in widths
     )

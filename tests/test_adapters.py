@@ -9,7 +9,12 @@ from typing import Any
 
 import pytest
 
-from pyreps.adapters import JsonAdapter, JsonStreamingAdapter, ListDictAdapter, SqlAdapter
+from pyreps.adapters import (
+    JsonAdapter,
+    JsonStreamingAdapter,
+    ListDictAdapter,
+    SqlAdapter,
+)
 from pyreps.exceptions import InputAdapterError
 
 

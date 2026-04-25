@@ -35,7 +35,9 @@ class XlsxColumnOptions:
             raise ReportError("xlsx column min_width cannot be greater than max_width")
 
     @classmethod
-    def from_mapping(cls, value: Mapping[str, Any], label: str = "label") -> XlsxColumnOptions:
+    def from_mapping(
+        cls, value: Mapping[str, Any], label: str = "label"
+    ) -> XlsxColumnOptions:
         return cls(
             width=coerce_optional_number(
                 value.get("width"),
@@ -65,7 +67,9 @@ class XlsxRenderOptions:
 
     def __post_init__(self) -> None:
         if self.width_mode not in _VALID_MODES:
-            raise ReportError("metadata['xlsx']['width_mode'] must be manual, auto or mixed")
+            raise ReportError(
+                "metadata['xlsx']['width_mode'] must be manual, auto or mixed"
+            )
         if self.default_width < 0.1:
             raise ReportError("metadata['xlsx']['default_width'] must be >= 0.1")
         if self.auto_padding < 0.0:
@@ -94,7 +98,9 @@ class XlsxRenderOptions:
             if not isinstance(label, str):
                 raise ReportError("metadata['xlsx']['columns'] keys must be strings")
             if not isinstance(options, Mapping):
-                raise ReportError(f"metadata['xlsx']['columns']['{label}'] must be a mapping")
+                raise ReportError(
+                    f"metadata['xlsx']['columns']['{label}'] must be a mapping"
+                )
             parsed_columns[label] = XlsxColumnOptions.from_mapping(options, label=label)
 
         return cls(
@@ -128,6 +134,8 @@ def _coerce_sheet_name(value: Any) -> str:
             "metadata['xlsx']['sheet_name'] contains invalid Excel characters: \\ / * ? : [ ]"
         )
     if name.startswith("'") or name.endswith("'"):
-        raise ReportError("metadata['xlsx']['sheet_name'] cannot start or end with apostrophe")
+        raise ReportError(
+            "metadata['xlsx']['sheet_name'] cannot start or end with apostrophe"
+        )
 
     return name

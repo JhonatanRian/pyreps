@@ -13,9 +13,7 @@ import pyreps.adapters as adapters_module
 def _sql_adapter(query: str, connection: sqlite3.Connection) -> Any:
     sql_adapter_cls = getattr(adapters_module, "SqlAdapter", None)
     if sql_adapter_cls is None:
-        pytest.fail(
-            "Expected `SqlAdapter` in `pyreps.adapters` for SQL data sources."
-        )
+        pytest.fail("Expected `SqlAdapter` in `pyreps.adapters` for SQL data sources.")
     return sql_adapter_cls(query=query, connection=connection)
 
 

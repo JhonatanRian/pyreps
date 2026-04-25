@@ -30,7 +30,9 @@ def test_xlsx_manual_width_respected(tmp_path: Path) -> None:
         },
     )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "manual.xlsx")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "manual.xlsx"
+    )
 
     assert _column_width(output, "A") == pytest.approx(30.0, abs=0.1)
 
@@ -52,13 +54,17 @@ def test_xlsx_auto_width_grows_for_long_content(tmp_path: Path) -> None:
         },
     )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "auto.xlsx")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "auto.xlsx"
+    )
 
     assert _column_width(output, "B") > 8.0
 
 
 def test_xlsx_mixed_mode_prefers_explicit_column_width(tmp_path: Path) -> None:
-    data = [{"id": "1234567890", "customer": {"name": "Cliente com nome muito muito longo"}}]
+    data = [
+        {"id": "1234567890", "customer": {"name": "Cliente com nome muito muito longo"}}
+    ]
     spec = ReportSpec(
         output_format="xlsx",
         columns=[
@@ -73,7 +79,9 @@ def test_xlsx_mixed_mode_prefers_explicit_column_width(tmp_path: Path) -> None:
         },
     )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "mixed.xlsx")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "mixed.xlsx"
+    )
 
     assert _column_width(output, "A") == pytest.approx(9.0, abs=0.1)
 
@@ -96,7 +104,9 @@ def test_xlsx_auto_width_respects_min_and_max_clamp(tmp_path: Path) -> None:
         },
     )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "clamp.xlsx")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "clamp.xlsx"
+    )
 
     width = _column_width(output, "B")
     assert width >= 14.0
@@ -111,7 +121,9 @@ def test_xlsx_manual_mode_falls_back_to_default_width(tmp_path: Path) -> None:
         metadata={"xlsx": {"width_mode": "manual", "default_width": 18}},
     )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "default.xlsx")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "default.xlsx"
+    )
 
     assert _column_width(output, "A") == pytest.approx(18.0, abs=0.1)
 
@@ -125,7 +137,9 @@ def test_xlsx_invalid_width_mode_raises_report_error(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ReportError):
-        generate_report(data_source=data, spec=spec, destination=tmp_path / "invalid.xlsx")
+        generate_report(
+            data_source=data, spec=spec, destination=tmp_path / "invalid.xlsx"
+        )
 
 
 def _column_width(path: Path, column_letter: str) -> float:
@@ -176,7 +190,9 @@ def test_xlsx_dom_patch_produces_valid_xml(tmp_path: Path) -> None:
         },
     )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "dom.xlsx")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "dom.xlsx"
+    )
     _assert_xlsx_xml_integrity(output, expect_cols=True)
 
 
@@ -192,7 +208,9 @@ def test_xlsx_pure_autofit_produces_valid_xml(tmp_path: Path) -> None:
         metadata={"xlsx": {"width_mode": "auto"}},
     )
 
-    output = generate_report(data_source=data, spec=spec, destination=tmp_path / "autofit.xlsx")
+    output = generate_report(
+        data_source=data, spec=spec, destination=tmp_path / "autofit.xlsx"
+    )
     _assert_xlsx_xml_integrity(output, expect_cols=False)
 
 
@@ -212,7 +230,10 @@ def test_xlsx_tmp_file_cleaned_up_on_error(tmp_path: Path) -> None:
     dest = tmp_path / "leak_test.xlsx"
 
     # Mock stream_patch_sheet_xml to raise an error during the patching phase
-    with mock.patch("pyreps.renderers.stream_patch_sheet_xml", side_effect=RuntimeError("Simulated Leak")):
+    with mock.patch(
+        "pyreps.renderers.stream_patch_sheet_xml",
+        side_effect=RuntimeError("Simulated Leak"),
+    ):
         with pytest.raises(RenderError, match="Simulated Leak"):
             generate_report(data_source=data, spec=spec, destination=dest)
 
@@ -228,46 +249,50 @@ def test_xlsx_stream_patch_tag_boundary() -> None:
 
     # chunk_size in _stream_patch_sheet_xml is 65536
     chunk_size = 65536
-    
+
     # We position "<sheetData>" so "<she" (4 chars) is at the end of the first chunk
     # and "etData>" is at the start of the second chunk.
     # To make it valid XML, we wrap it in <worksheet>.
     # We must use the same namespace so ElementTree can find tags.
     header = f'<worksheet xmlns="{_XLSX_NS}">'.encode()
     prefix_len = (chunk_size - 4) - len(header)
-    xml_content = header + (b"A" * prefix_len) + b"<sheetData><row/></sheetData></worksheet>"
-    
+    xml_content = (
+        header + (b"A" * prefix_len) + b"<sheetData><row/></sheetData></worksheet>"
+    )
+
     instream = io.BytesIO(xml_content)
     outstream = io.BytesIO()
     cols_el = ET.Element(f"{{{_XLSX_NS}}}cols")
-    ET.SubElement(cols_el, f"{{{_XLSX_NS}}}col", {"min": "1", "max": "1", "width": "20"})
-    
+    ET.SubElement(
+        cols_el, f"{{{_XLSX_NS}}}col", {"min": "1", "max": "1", "width": "20"}
+    )
+
     # Run the streaming patcher
     _stream_patch_sheet_xml(instream, outstream, cols_el)
-    
+
     result = outstream.getvalue()
-    
+
     # Check if patch was successful using XML parsing
     root = ET.fromstring(result)
     ns = {"ns": _XLSX_NS}
-    
+
     cols = root.findall("ns:cols", ns)
     assert len(cols) == 1, "Patch failed: <cols> tag missing or duplicated"
-    
+
     col = cols[0].find("ns:col", ns)
     assert col is not None
     assert col.get("width") == "20"
-    
+
     sheet_data = root.find("ns:sheetData", ns)
     assert sheet_data is not None, "Data corrupted: <sheetData> tag missing"
-    
+
     # Ensure relative order (cols must be before sheetData)
     # In ElementTree list, cols should come before sheetData
     elements = list(root)
     cols_idx = elements.index(cols[0])
     data_idx = elements.index(sheet_data)
     assert cols_idx < data_idx, "<cols> must be before <sheetData>"
-    
+
     # Ensure content was preserved
     row = sheet_data.find("ns:row", ns)
     assert row is not None

@@ -40,7 +40,9 @@ def test_map_records_applies_formatter() -> None:
     spec = ReportSpec(
         columns=[
             ColumnSpec(label="ID", source="id", required=True),
-            ColumnSpec(label="Total", source="total", formatter=lambda value: f"{value:.2f}"),
+            ColumnSpec(
+                label="Total", source="total", formatter=lambda value: f"{value:.2f}"
+            ),
         ]
     )
 
@@ -51,7 +53,9 @@ def test_map_records_applies_formatter() -> None:
 
 def test_map_records_raises_for_missing_required_field() -> None:
     records = [{"id": "1"}]
-    spec = ReportSpec(columns=[ColumnSpec(label="Cliente", source="customer.name", required=True)])
+    spec = ReportSpec(
+        columns=[ColumnSpec(label="Cliente", source="customer.name", required=True)]
+    )
 
     with pytest.raises(MappingError):
         list(map_records(records, spec))

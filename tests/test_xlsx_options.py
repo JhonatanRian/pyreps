@@ -54,5 +54,7 @@ def test_xlsx_options_post_init_preserves_mapping_proxy() -> None:
 
 def test_xlsx_column_options_error_messages() -> None:
     # Check if error message contains the specific column label
-    with pytest.raises(ReportError, match=r"metadata\['xlsx'\]\['columns'\]\['PRICE'\]\['width'\]"):
+    with pytest.raises(
+        ReportError, match=r"metadata\['xlsx'\]\['columns'\]\['PRICE'\]\['width'\]"
+    ):
         XlsxColumnOptions.from_mapping({"width": -1}, label="PRICE")

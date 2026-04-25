@@ -22,7 +22,7 @@ def get_cursor(connection: DBConnection) -> Any:
     is_closed = getattr(connection, "closed", False)
     if callable(is_closed):
         is_closed = is_closed()
-    
+
     if is_closed:
         raise InputAdapterError("The connection is closed.")
 

@@ -14,8 +14,8 @@ def test_coercion_error_hierarchy() -> None:
     assert issubclass(CoercionError, MappingError)
 
 
-
 # ── str coercion ──────────────────────────────────────────────────────
+
 
 def test_coerce_str_from_int() -> None:
     rows = _map([{"v": 42}], type="str", source="v")
@@ -38,6 +38,7 @@ def test_coerce_str_from_none_passthrough() -> None:
 
 
 # ── int coercion ──────────────────────────────────────────────────────
+
 
 def test_coerce_int_identity() -> None:
     rows = _map([{"v": 42}], type="int", source="v")
@@ -76,6 +77,7 @@ def test_coerce_int_from_invalid_string_raises() -> None:
 
 # ── float coercion ────────────────────────────────────────────────────
 
+
 def test_coerce_float_identity() -> None:
     rows = _map([{"v": 3.14}], type="float", source="v")
     assert rows == [{"out": pytest.approx(3.14)}]
@@ -103,10 +105,22 @@ def test_coerce_float_from_invalid_string_raises() -> None:
 
 # ── bool coercion ─────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("raw,expected", [
-    ("true", True), ("True", True), ("1", True), ("yes", True), ("sim", True),
-    ("false", False), ("False", False), ("0", False), ("no", False), ("não", False),
-])
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("true", True),
+        ("True", True),
+        ("1", True),
+        ("yes", True),
+        ("sim", True),
+        ("false", False),
+        ("False", False),
+        ("0", False),
+        ("no", False),
+        ("não", False),
+    ],
+)
 def test_coerce_bool_from_string(raw: str, expected: bool) -> None:
     rows = _map([{"v": raw}], type="bool", source="v")
     assert rows == [{"out": expected}]
@@ -144,6 +158,7 @@ def test_coerce_bool_unsupported_type_raises() -> None:
 
 # ── date coercion ─────────────────────────────────────────────────────
 
+
 def test_coerce_date_from_iso_string() -> None:
     rows = _map([{"v": "2025-06-15"}], type="date", source="v")
     assert rows == [{"out": date(2025, 6, 15)}]
@@ -175,6 +190,7 @@ def test_coerce_date_unsupported_type_raises() -> None:
 
 
 # ── datetime coercion ─────────────────────────────────────────────────
+
 
 def test_coerce_datetime_identity() -> None:
     dt = datetime(2025, 6, 15, 10, 30)
@@ -209,21 +225,25 @@ def test_coerce_datetime_unsupported_type_raises() -> None:
 
 # ── interaction with formatter ────────────────────────────────────────
 
+
 def test_type_coercion_runs_before_formatter() -> None:
     """Formatter receives the coerced value (date object, not string)."""
-    spec = ReportSpec(columns=[
-        ColumnSpec(
-            label="out",
-            source="v",
-            type="date",
-            formatter=lambda d: d.strftime("%d/%m/%Y"),
-        ),
-    ])
+    spec = ReportSpec(
+        columns=[
+            ColumnSpec(
+                label="out",
+                source="v",
+                type="date",
+                formatter=lambda d: d.strftime("%d/%m/%Y"),
+            ),
+        ]
+    )
     rows = list(map_records([{"v": "2025-06-15"}], spec))
     assert rows == [{"out": "15/06/2025"}]
 
 
 # ── no type = passthrough (backwards compatible) ──────────────────────
+
 
 def test_no_type_passes_value_through() -> None:
     rows = _map([{"v": {"nested": True}}], type=None, source="v")
@@ -232,50 +252,63 @@ def test_no_type_passes_value_through() -> None:
 
 # ── default value with type ──────────────────────────────────────────
 
+
 def test_default_value_typed_correctly_passes_through() -> None:
-    spec = ReportSpec(columns=[
-        ColumnSpec(label="out", source="missing", type="int", default=0),
-    ])
+    spec = ReportSpec(
+        columns=[
+            ColumnSpec(label="out", source="missing", type="int", default=0),
+        ]
+    )
     rows = list(map_records([{"other": "x"}], spec))
     assert rows == [{"out": 0}]
 
 
 def test_default_string_value_is_coerced_by_type() -> None:
     """Default values are also subject to coercion when type is set."""
-    spec = ReportSpec(columns=[
-        ColumnSpec(label="out", source="missing", type="int", default="42"),
-    ])
+    spec = ReportSpec(
+        columns=[
+            ColumnSpec(label="out", source="missing", type="int", default="42"),
+        ]
+    )
     rows = list(map_records([{"other": "x"}], spec))
     assert rows == [{"out": 42}]
 
 
 def test_default_none_skips_coercion() -> None:
-    spec = ReportSpec(columns=[
-        ColumnSpec(label="out", source="missing", type="int", default=None),
-    ])
+    spec = ReportSpec(
+        columns=[
+            ColumnSpec(label="out", source="missing", type="int", default=None),
+        ]
+    )
     rows = list(map_records([{"other": "x"}], spec))
     assert rows == [{"out": None}]
 
 
 # ── required + type interaction ──────────────────────────────────────
 
+
 def test_required_field_with_type_coerces_value() -> None:
-    spec = ReportSpec(columns=[
-        ColumnSpec(label="out", source="v", type="int", required=True),
-    ])
+    spec = ReportSpec(
+        columns=[
+            ColumnSpec(label="out", source="v", type="int", required=True),
+        ]
+    )
     rows = list(map_records([{"v": "10"}], spec))
     assert rows == [{"out": 10}]
 
 
 def test_required_missing_raises_before_coercion() -> None:
-    spec = ReportSpec(columns=[
-        ColumnSpec(label="out", source="v", type="int", required=True),
-    ])
+    spec = ReportSpec(
+        columns=[
+            ColumnSpec(label="out", source="v", type="int", required=True),
+        ]
+    )
     with pytest.raises(MappingError, match="required field"):
         list(map_records([{"other": "x"}], spec))
 
 
 # ── multiple records ─────────────────────────────────────────────────
+
 
 def test_coercion_applies_to_all_records() -> None:
     records = [{"v": "1"}, {"v": "2"}, {"v": "3"}]
@@ -290,6 +323,7 @@ def test_coercion_error_reports_correct_record_index() -> None:
 
 
 # ── format cache isolation (thread-safety) ───────────────────────────
+
 
 def test_format_cache_does_not_leak_between_reports() -> None:
     """Each map_records call gets its own cache — no cross-contamination."""
@@ -347,6 +381,7 @@ def test_coerce_value_without_cache_still_works() -> None:
 
 
 # ── helper ────────────────────────────────────────────────────────────
+
 
 def _map(records: list[dict], *, type: str | None, source: str) -> list[dict]:
     spec = ReportSpec(columns=[ColumnSpec(label="out", source=source, type=type)])

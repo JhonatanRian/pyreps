@@ -21,7 +21,9 @@ class ListDictAdapter(InputAdapter):
         if not isinstance(data_source, Iterable) or isinstance(
             data_source, (str, bytes, bytearray)
         ):
-            raise InputAdapterError("list/dict adapter requires an iterable of mappings")
+            raise InputAdapterError(
+                "list/dict adapter requires an iterable of mappings"
+            )
 
         return ensure_mapping_stream(iter(data_source))
 

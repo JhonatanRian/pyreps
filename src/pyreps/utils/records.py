@@ -36,8 +36,7 @@ class TupleRecord(Mapping[str, Any]):
 
 
 def ensure_mapping_stream(
-    iterator: Iterator[Any], 
-    source_name: str = "Input"
+    iterator: Iterator[Any], source_name: str = "Input"
 ) -> Iterator[Mapping[str, Any]]:
     """
     Optimized wrapper that ensures an iterator yields Mapping objects.
@@ -114,7 +113,7 @@ class WidthTracker:
         # Optimization: Use enumerate on values to avoid manual indexing overhead
         fetcher = itemgetter(*labels)
         current_max_lens = [self.max_lens[label] for label in labels]
-        
+
         # Cache localized references to built-ins for performance
         _len, _type, _str, _str_type = len, type, str, str
 
