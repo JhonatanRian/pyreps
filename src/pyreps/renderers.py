@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterable, Mapping, Sequence
 from operator import itemgetter
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -49,10 +49,11 @@ _PDF_MIN_WIDTH_PT = 30.0
 
 
 class CsvRenderer(Renderer):
+    @override
     @wrap_render_error("CSV")
     def render(
         self,
-        rows: Iterable[Mapping[str, Any]],
+        rows: Iterable[Record],
         spec: ReportSpec,
         destination: str | Path,
     ) -> Path:
@@ -72,10 +73,11 @@ class CsvRenderer(Renderer):
 
 
 class XlsxRenderer(Renderer):
+    @override
     @wrap_render_error("XLSX")
     def render(
         self,
-        rows: Iterable[Mapping[str, Any]],
+        rows: Iterable[Record],
         spec: ReportSpec,
         destination: str | Path,
     ) -> Path:
@@ -152,10 +154,11 @@ class StreamingDocTemplate(SimpleDocTemplate):
 
 
 class PdfRenderer(Renderer):
+    @override
     @wrap_render_error("PDF")
     def render(
         self,
-        rows: Iterable[Mapping[str, Any]],
+        rows: Iterable[Record],
         spec: ReportSpec,
         destination: str | Path,
     ) -> Path:

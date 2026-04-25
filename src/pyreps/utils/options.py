@@ -1,7 +1,35 @@
 from __future__ import annotations
 
-from typing import Any
-from ..exceptions import ReportError
+from collections.abc import Iterable
+from typing import Any, get_args
+from ..exceptions import InvalidSpecError, ReportError
+
+
+def validate_str(value: Any, field_name: str) -> str:
+    """Ensure value is a non-empty string."""
+    if not isinstance(value, str) or not value:
+        raise InvalidSpecError(f"{field_name} must be a non-empty string, got {value!r}")
+    return value
+
+
+def validate_literal[T](value: Any, literal_type: T, field_name: str) -> Any:
+    """Ensure value is part of a Literal's allowed arguments. Supports PEP 695 aliases."""
+    actual_type = getattr(literal_type, "__value__", literal_type)
+    allowed = get_args(actual_type)
+    if value not in allowed:
+        raise InvalidSpecError(f"Invalid {field_name} {value!r}. Allowed: {allowed}")
+    return value
+
+
+def ensure_unique[I](items: Iterable[I], name: str) -> tuple[I, ...]:
+    """Ensure all items are unique and return them as a tuple. O(N)."""
+    result = tuple(items)
+    if len(set(result)) == len(result):
+        return result
+
+    seen = set()
+    duplicates = {x for x in result if x in seen or seen.add(x)}
+    raise InvalidSpecError(f"Duplicate {name} detected: {duplicates}")
 
 
 def coerce_number(value: Any, *, field_name: str, min_value: float) -> float:

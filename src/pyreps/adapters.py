@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, BinaryIO
+from typing import Any, BinaryIO, override
 
 import ijson
 import orjson
@@ -14,40 +14,38 @@ from .utils.db import get_cursor
 from .utils.records import ensure_mapping_stream, wrap_cursor_stream
 
 
-class ListDictAdapter(InputAdapter):
+class ListDictAdapter(InputAdapter[Iterable[Mapping[str, Any]]]):
     """Adapter for data already in memory as an iterable of dicts."""
 
-    def adapt(self, data_source: Any) -> Iterable[Record]:
-        if not isinstance(data_source, Iterable) or isinstance(
-            data_source, (str, bytes, bytearray)
-        ):
-            raise InputAdapterError(
-                "list/dict adapter requires an iterable of mappings"
-            )
+    @override
+    def adapt(self, data_source: Iterable[Mapping[str, Any]]) -> Iterable[Record]:
+        match data_source:
+            case str() | bytes() | bytearray():
+                raise InputAdapterError("list/dict adapter requires an iterable of mappings")
+            case Iterable():
+                return ensure_mapping_stream(iter(data_source))
+            case _:
+                raise InputAdapterError("list/dict adapter requires an iterable of mappings")
 
-        return ensure_mapping_stream(iter(data_source))
 
-
-class JsonAdapter(InputAdapter):
+class JsonAdapter(InputAdapter[str | bytes | Mapping[str, Any] | list[Any]]):
     """
     Adapter for JSON data already present in memory.
     Supports JSON strings, bytes, or pre-parsed dicts/lists.
-    If the top-level object has an "items" key containing a list, it will be used as the record source.
-    For large files, use JsonStreamingAdapter instead.
     """
 
+    @override
     def adapt(self, data_source: Any) -> Iterable[Record]:
-        if isinstance(data_source, (str, bytes, bytearray)):
-            try:
-                payload = orjson.loads(data_source)
-            except Exception as exc:
-                raise InputAdapterError(f"Failed to parse JSON: {exc}") from exc
-        elif isinstance(data_source, (Mapping, list)):
-            payload = data_source
-        else:
-            raise InputAdapterError(
-                "json adapter expects JSON text, dict, or list payload"
-            )
+        match data_source:
+            case str() | bytes() | bytearray():
+                try:
+                    payload = orjson.loads(data_source)
+                except Exception as exc:
+                    raise InputAdapterError(f"Failed to parse JSON: {exc}") from exc
+            case Mapping() | list():
+                payload = data_source
+            case _:
+                raise InputAdapterError("json adapter expects JSON text, dict, or list payload")
 
         if isinstance(payload, Mapping):
             items = payload.get("items")
@@ -60,7 +58,7 @@ class JsonAdapter(InputAdapter):
 
 
 @dataclass(slots=True, frozen=True)
-class JsonStreamingAdapter(InputAdapter):
+class JsonStreamingAdapter(InputAdapter[str | Path | BinaryIO]):
     """
     Adapter for high-performance JSON streaming from files or binary streams.
     Uses ijson to parse the input iteratively, keeping memory usage constant.
@@ -68,19 +66,21 @@ class JsonStreamingAdapter(InputAdapter):
 
     item_path: str = "item"
 
-    def adapt(self, data_source: Any) -> Iterable[Record]:
-        if isinstance(data_source, (str, Path)):
-            try:
-                with open(data_source, "rb") as f:
-                    yield from self._iterate(f)
-            except Exception as exc:
-                raise InputAdapterError(f"Streaming JSON failed: {exc}") from exc
-        elif hasattr(data_source, "read"):
-            yield from self._iterate(data_source)
-        else:
-            raise InputAdapterError(
-                "JsonStreamingAdapter expects a file path (str/Path) or a binary file-like object"
-            )
+    @override
+    def adapt(self, data_source: str | Path | BinaryIO) -> Iterable[Record]:
+        match data_source:
+            case str() | Path():
+                try:
+                    with open(data_source, "rb") as f:
+                        yield from self._iterate(f)
+                except Exception as exc:
+                    raise InputAdapterError(f"Streaming JSON failed: {exc}") from exc
+            case stream if hasattr(stream, "read"):
+                yield from self._iterate(stream)
+            case _:
+                raise InputAdapterError(
+                    "JsonStreamingAdapter expects a file path (str/Path) or a binary file-like object"
+                )
 
     def _iterate(self, stream: BinaryIO) -> Iterator[Record]:
         try:
@@ -90,17 +90,18 @@ class JsonStreamingAdapter(InputAdapter):
 
 
 @dataclass(slots=True, frozen=True)
-class SqlAdapter(InputAdapter):
+class SqlAdapter(InputAdapter[None]):
     """Adapter for SQL query results via a DB-API 2.0 connection."""
 
     query: str
     connection: DBConnection
     params: tuple[Any, ...] | dict[str, Any] | None = None
 
-    def adapt(self, data_source: Any) -> Iterable[Record]:
-        cursor = get_cursor(self.connection)
+    @override
+    def adapt(self, data_source: None = None) -> Iterable[Record]:
+        from contextlib import closing
 
-        try:
+        with closing(get_cursor(self.connection)) as cursor:
             try:
                 if self.params is not None:
                     cursor.execute(self.query, self.params)
@@ -115,5 +116,3 @@ class SqlAdapter(InputAdapter):
                 )
 
             yield from wrap_cursor_stream(cursor)
-        finally:
-            cursor.close()

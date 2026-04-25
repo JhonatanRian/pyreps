@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable
 
 
 class ReportError(Exception):
@@ -24,10 +24,11 @@ class RenderError(ReportError):
     """Raised when a renderer fails to produce the output file."""
 
 
-F = TypeVar("F", bound=Callable[..., Any])
+class InvalidSpecError(ReportError):
+    """Raised when the ReportSpec or ColumnSpec configuration is invalid."""
 
 
-def wrap_render_error(format_name: str) -> Callable[[F], F]:
+def wrap_render_error[F: Callable[..., Any]](format_name: str) -> Callable[[F], F]:
     """Decorator to wrap any exception during rendering into a RenderError."""
 
     def decorator(func: F) -> F:

@@ -38,12 +38,12 @@ def _report_transaction(
         raise
 
 
-def generate_report(
+def generate_report[T](
     *,
-    data_source: Any,
+    data_source: T,
     spec: ReportSpec,
     destination: str | Path,
-    input_adapter: InputAdapter | None = None,
+    input_adapter: InputAdapter[T] | None = None,
     renderer_registry: dict[str, Renderer] | None = None,
 ) -> Path:
     adapter = input_adapter or _resolve_adapter(data_source)
@@ -62,7 +62,7 @@ def generate_report(
         return renderer.render(mapped_rows, spec, output_path)
 
 
-def _resolve_adapter(data_source: Any) -> InputAdapter:
+def _resolve_adapter(data_source: Any) -> InputAdapter[Any]:
     if isinstance(data_source, (str, bytes, bytearray)):
         return JsonAdapter()
 
