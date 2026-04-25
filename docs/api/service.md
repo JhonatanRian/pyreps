@@ -2,12 +2,12 @@
 
 Main library function — the entry point for generating any report.
 
-::: pyreps.service.generate_report
+::: {{ project_name }}.service.generate_report
 
 ## Example
 
 ```python
-from pyreps import ColumnSpec, ReportSpec, generate_report
+from {{ project_name }} import ColumnSpec, ReportSpec, generate_report
 
 spec = ReportSpec(
     output_format="xlsx",

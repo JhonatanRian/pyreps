@@ -4,7 +4,7 @@ site_description: Python report generation — CSV, XLSX, and PDF with Rust perf
 site_author: Jhonatan
 
 repo_name: pyreps
-repo_url: https://github.com/jhonatan/pyreps
+repo_url: https://github.com/JhonatanRian/pyreps
 
 copyright: Copyright &copy; 2026 Jhonatan
 
@@ -44,6 +44,8 @@ theme:
 plugins:
   - search:
       lang: en
+  - macros:
+      module_name: docs/main
   - minify:
       minify_html: true
   - mkdocstrings:
@@ -97,14 +99,19 @@ markdown_extensions:
   - pymdownx.tilde
 
 extra:
+  project_name: pyreps
+  repo_url: https://github.com/JhonatanRian/pyreps
+  pypi_url: https://pypi.org/project/pyreps/
+  rust_lib: rustpy-xlsxwriter
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/jhonatan/pyreps
+      link: https://github.com/JhonatanRian/pyreps
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/pyreps/
 
 nav:
   - Home: index.md
+  - 🇧🇷 PT-BR (Resumo): pt-br.md
   - Guide:
       - Quickstart: guide/quickstart.md
       - Declarative Types: guide/types.md

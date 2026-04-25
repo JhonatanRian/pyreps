@@ -5,24 +5,24 @@
 === "pip"
 
     ```bash
-    pip install pyreps
+    pip install {{ project_name }}
     ```
 
 === "uv"
 
     ```bash
-    uv add pyreps
+    uv add {{ project_name }}
     ```
 
 === "poetry"
 
     ```bash
-    poetry add pyreps
+    poetry add {{ project_name }}
     ```
 
 ## Core Concepts
 
-**pyreps** works in 3 steps:
+**{{ project_name }}** works in 3 steps:
 
 1. **Define columns** with `ColumnSpec` — what to extract and how to format.
 2. **Create the spec** with `ReportSpec` — output format and metadata.
@@ -39,7 +39,7 @@ graph LR
 ## Generating a CSV
 
 ```python
-from pyreps import ColumnSpec, ReportSpec, generate_report
+from {{ project_name }} import ColumnSpec, ReportSpec, generate_report
 
 data = [
     {"id": 1, "name": "Ana Silva", "value": 1500.00},

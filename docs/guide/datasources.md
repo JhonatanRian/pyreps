@@ -1,6 +1,6 @@
 # Data Sources
 
-**pyreps** accepts data from multiple sources via adapters. Detection is automatic for the most common types.
+**{{ project_name }}** accepts data from multiple sources via adapters. Detection is automatic for the most common types.
 
 ## list[dict] — ListDictAdapter
 
@@ -57,7 +57,7 @@ Accepts JSON strings, bytes, dicts, and lists. Parsing via **orjson** (Rust, ~6x
 For massive JSON files (500MB+) or I/O streams, use `JsonStreamingAdapter`. It uses the **ijson** library to read the file iteratively, keeping memory consumption constant.
 
 ```python
-from pyreps import JsonStreamingAdapter, generate_report
+from {{ project_name }} import JsonStreamingAdapter, generate_report
 
 # Reading from a file path
 generate_report(
@@ -88,7 +88,7 @@ For SQL queries, use `SqlAdapter` explicitly:
 
 ```python
 import sqlite3
-from pyreps import SqlAdapter, generate_report
+from {{ project_name }} import SqlAdapter, generate_report
 
 conn = sqlite3.connect("app.db")
 
@@ -115,7 +115,7 @@ Implement the `InputAdapter` protocol for any data source:
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-from pyreps.contracts import InputAdapter, Record
+from {{ project_name }}.contracts import InputAdapter, Record
 
 
 class MongoAdapter(InputAdapter):

@@ -4,23 +4,23 @@ Adapters normalize various data sources into iterables of records.
 
 ## ListDictAdapter
 
-::: pyreps.adapters.ListDictAdapter
+::: {{ project_name }}.adapters.ListDictAdapter
 
 ## JsonAdapter
 
-::: pyreps.adapters.JsonAdapter
+::: {{ project_name }}.adapters.JsonAdapter
 
 ## JsonStreamingAdapter
 
-::: pyreps.adapters.JsonStreamingAdapter
+::: {{ project_name }}.adapters.JsonStreamingAdapter
 
 ## SqlAdapter
 
-::: pyreps.adapters.SqlAdapter
+::: {{ project_name }}.adapters.SqlAdapter
 
 ## InputAdapter (Protocol)
 
-::: pyreps.contracts.InputAdapter
+::: {{ project_name }}.contracts.InputAdapter
 
 ## Custom Adapter
 

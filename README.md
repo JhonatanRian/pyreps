@@ -1,13 +1,13 @@
 <div align="center">
 
-# pyreps
+# {{ project_name }}
 
 **Python report generation — CSV, XLSX, and PDF with Rust performance.** ⚡
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-[Documentation](https://pyreps.readthedocs.io/) · [PyPI](https://pypi.org/project/pyreps/) · [Issues](https://github.com/jhonatan/pyreps/issues)
+[Documentation](https://{{ project_name }}.readthedocs.io/) · [PyPI]({{ pypi_url }}) · [Issues]({{ repo_url }}/issues)
 
 </div>
 
@@ -16,7 +16,7 @@
 ## ✨ Highlights
 
 - **🚀 High Performance** — 100% streaming pipeline. CSV and XLSX use < 1 MB of RAM with 500K+ rows.
-- **🦀 Powered by Rust** — XLSX via `rustpy-xlsxwriter`, JSON via `orjson`.
+- **🦀 Powered by Rust** — XLSX via `{{ rust_lib }}`, JSON via `orjson`.
 - **📄 3 Formats** — CSV, XLSX, and PDF with a single API.
 - **🔌 Pluggable** — Supports `list[dict]`, JSON, SQL, or any custom source.
 - **🎯 Declarative Types** — Automatic coercion for `int`, `float`, `bool`, `date`, `datetime`.
@@ -25,13 +25,13 @@
 ## Installation
 
 ```bash
-pip install pyreps
+pip install {{ project_name }}
 ```
 
 ## Quickstart
 
 ```python
-from pyreps import ColumnSpec, ReportSpec, generate_report
+from {{ project_name }} import ColumnSpec, ReportSpec, generate_report
 
 # data sample
 data = [
@@ -57,7 +57,7 @@ path = generate_report(data_source=data, spec=spec, destination="sales.csv")
 | Format | Renderer | Engine | Streaming |
 |---------|----------|-------|-----------|
 | CSV | `CsvRenderer` | `csv` stdlib (C) | ✅ Constant memory |
-| XLSX | `XlsxRenderer` | `rustpy-xlsxwriter` (Rust) | ✅ Constant memory |
+| XLSX | `XlsxRenderer` | `{{ rust_lib }}` (Rust) | ✅ Constant memory |
 | PDF | `PdfRenderer` | `reportlab` (C) | ⚠️ Materializes (layout) |
 
 ## Data Sources
@@ -102,7 +102,7 @@ spec = ReportSpec(
 ## SQL
 
 ```python
-from pyreps import SqlAdapter
+from {{ project_name }} import SqlAdapter
 
 generate_report(
     data_source=None,
@@ -128,7 +128,7 @@ Benchmark with 6 columns and declarative types:
 
 ## Documentation
 
-📖 Complete documentation at [pyreps.readthedocs.io](https://pyreps.readthedocs.io/)
+📖 Complete documentation at [{{ project_name }}.readthedocs.io](https://{{ project_name }}.readthedocs.io/)
 
 ## License
 

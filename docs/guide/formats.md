@@ -1,6 +1,6 @@
 # Output Formats
 
-**pyreps** supports three output formats, all configurable via `ReportSpec.metadata`.
+**{{ project_name }}** supports three output formats, all configurable via `ReportSpec.metadata`.
 
 ## CSV
 
@@ -26,7 +26,7 @@ spec = ReportSpec(
 
 ## XLSX
 
-Generated via **Rust** (`rustpy-xlsxwriter`) with automatic column width support.
+Generated via **Rust** (`{{ rust_lib }}`) with automatic column width support.
 
 ### Full Example
 

@@ -3,7 +3,10 @@ hide:
   - navigation
 ---
 
-# pyreps
+!!! info "🇧🇷 Português Brasileiro"
+    Nós temos um [resumo completo e guia de início rápido em Português Brasileiro](pt-br.md) disponível!
+
+# {{ project_name }}
 
 <p align="center" style="font-size: 1.25em;">
   Python report generation — CSV, XLSX, and PDF with Rust performance. :zap:
@@ -48,19 +51,19 @@ hide:
 ## Installation
 
 ```bash
-pip install pyreps
+pip install {{ project_name }}
 ```
 
 Or with **uv**:
 
 ```bash
-uv add pyreps
+uv add {{ project_name }}
 ```
 
 ## Quickstart
 
 ```python
-from pyreps import ColumnSpec, ReportSpec, generate_report
+from {{ project_name }} import ColumnSpec, ReportSpec, generate_report
 
 # data sample
 data = [
@@ -101,6 +104,6 @@ The pipeline is **100% streaming** for CSV and XLSX — each record is processed
 
 ## Links
 
-- :fontawesome-brands-github: [Source code](https://github.com/jhonatan/pyreps)
-- :fontawesome-brands-python: [PyPI](https://pypi.org/project/pyreps/)
-- :material-bug: [Issues](https://github.com/jhonatan/pyreps/issues)
+- :fontawesome-brands-github: [Source code]({{ repo_url }})
+- :fontawesome-brands-python: [PyPI]({{ pypi_url }})
+- :material-bug: [Issues]({{ repo_url }}/issues)

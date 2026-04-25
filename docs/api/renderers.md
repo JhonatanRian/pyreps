@@ -4,19 +4,19 @@ Renderers transform mapped data into output files.
 
 ## CsvRenderer
 
-::: pyreps.renderers.CsvRenderer
+::: {{ project_name }}.renderers.CsvRenderer
 
 ## XlsxRenderer
 
-::: pyreps.renderers.XlsxRenderer
+::: {{ project_name }}.renderers.XlsxRenderer
 
 ## PdfRenderer
 
-::: pyreps.renderers.PdfRenderer
+::: {{ project_name }}.renderers.PdfRenderer
 
 ## Renderer (Protocol)
 
-::: pyreps.contracts.Renderer
+::: {{ project_name }}.contracts.Renderer
 
 ## Registry
 

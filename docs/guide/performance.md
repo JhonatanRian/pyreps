@@ -1,6 +1,6 @@
 # Performance
 
-**pyreps** is designed for high performance and low memory consumption.
+**{{ project_name }}** is designed for high performance and low memory consumption.
 
 ## Streaming Pipeline
 
@@ -46,7 +46,7 @@ Results with 6 columns, declarative types enabled:
 | Component | Library | Language | Why |
 |-----------|-----|-----------|---------|
 | JSON parsing | `orjson` | **Rust** | ~6x faster than `json` stdlib |
-| XLSX writing | `rustpy-xlsxwriter` | **Rust** | Native writing, accepts generators |
+| XLSX writing | `{{ rust_lib }}` | **Rust** | Native writing, accepts generators |
 | XLSX widths | ZIP streaming | **Python** | Patching in 64KB chunks, no DOM |
 | CSV | `csv` stdlib | **C** | Native module, as fast as possible |
 | PDF | `reportlab` | **Python + C** | C core, industry standard |

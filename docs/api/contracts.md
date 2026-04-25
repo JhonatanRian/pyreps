@@ -4,7 +4,7 @@ Core contracts that define the structure and behavior of the report.
 
 ## ColumnSpec
 
-::: pyreps.contracts.ColumnSpec
+::: {{ project_name }}.contracts.ColumnSpec
 
 ## ColumnType
 
@@ -16,7 +16,7 @@ See [Declarative Types](../guide/types.md) for coercion details.
 
 ## ReportSpec
 
-::: pyreps.contracts.ReportSpec
+::: {{ project_name }}.contracts.ReportSpec
 
 ## Auxiliary Types
 

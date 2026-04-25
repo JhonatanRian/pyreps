@@ -16,7 +16,7 @@
 ## Basic Usage
 
 ```python
-from pyreps import ColumnSpec, ReportSpec
+from {{ project_name }} import ColumnSpec, ReportSpec
 
 spec = ReportSpec(
     output_format="csv",

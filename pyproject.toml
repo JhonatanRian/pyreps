@@ -27,14 +27,15 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/jhonatan/pyreps"
-Documentation = "https://jhonatan.github.io/pyreps/"
-Repository = "https://github.com/jhonatan/pyreps"
-Issues = "https://github.com/jhonatan/pyreps/issues"
-Changelog = "https://github.com/jhonatan/pyreps/blob/master/CHANGELOG.md"
+Homepage = "https://github.com/JhonatanRian/pyreps"
+Documentation = "https://JhonatanRian.github.io/pyreps/"
+Repository = "https://github.com/JhonatanRian/pyreps"
+Issues = "https://github.com/JhonatanRian/pyreps/issues"
+Changelog = "https://github.com/JhonatanRian/pyreps/blob/master/CHANGELOG.md"
 
 [dependency-groups]
 dev = [
+    "mkdocs-macros-plugin>=1.5.0",
     "mkdocs-material>=9.7.6",
     "mkdocs-minify-plugin>=0.8.0",
     "mkdocstrings[python]>=1.0.3",
