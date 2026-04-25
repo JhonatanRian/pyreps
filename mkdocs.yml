@@ -1,6 +1,6 @@
 site_name: pyreps
 site_url: https://pyreps.readthedocs.io/
-site_description: Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust.
+site_description: Python report generation — CSV, XLSX, and PDF with Rust performance.
 site_author: Jhonatan
 
 repo_name: pyreps
@@ -10,7 +10,7 @@ copyright: Copyright &copy; 2026 Jhonatan
 
 theme:
   name: material
-  language: pt-BR
+  language: en
   icon:
     repo: fontawesome/brands/github
     logo: material/file-chart
@@ -20,13 +20,13 @@ theme:
       accent: amber
       toggle:
         icon: material/brightness-7
-        name: Modo escuro
+        name: Switch to dark mode
     - scheme: slate
       primary: indigo
       accent: amber
       toggle:
         icon: material/brightness-4
-        name: Modo claro
+        name: Switch to light mode
   features:
     - navigation.instant
     - navigation.instant.progress
@@ -43,7 +43,7 @@ theme:
 
 plugins:
   - search:
-      lang: pt
+      lang: en
   - minify:
       minify_html: true
   - mkdocstrings:
@@ -105,11 +105,11 @@ extra:
 
 nav:
   - Home: index.md
-  - Guia:
-      - Início Rápido: guide/quickstart.md
-      - Tipos Declarativos: guide/types.md
-      - Formatos de Saída: guide/formats.md
-      - Fontes de Dados: guide/datasources.md
+  - Guide:
+      - Quickstart: guide/quickstart.md
+      - Declarative Types: guide/types.md
+      - Output Formats: guide/formats.md
+      - Data Sources: guide/datasources.md
       - Performance: guide/performance.md
   - API Reference:
       - generate_report: api/service.md

@@ -1,7 +1,7 @@
 [project]
 name = "pyreps"
 version = "0.1.5"
-description = "Geração de relatórios em Python — CSV, XLSX e PDF com performance de Rust."
+description = "Python report generation — CSV, XLSX, and PDF with Rust performance."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"

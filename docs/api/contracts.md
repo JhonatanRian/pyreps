@@ -1,6 +1,6 @@
 # ColumnSpec & ReportSpec
 
-Contratos centrais que definem a estrutura e o comportamento do relatório.
+Core contracts that define the structure and behavior of the report.
 
 ## ColumnSpec
 
@@ -12,13 +12,13 @@ Contratos centrais que definem a estrutura e o comportamento do relatório.
 ColumnType = Literal["str", "int", "float", "bool", "date", "datetime"]
 ```
 
-Veja [Tipos Declarativos](../guide/types.md) para detalhes de coerção.
+See [Declarative Types](../guide/types.md) for coercion details.
 
 ## ReportSpec
 
 ::: pyreps.contracts.ReportSpec
 
-## Tipos Auxiliares
+## Auxiliary Types
 
 ```python
 OutputFormat = Literal["csv", "xlsx", "pdf"]

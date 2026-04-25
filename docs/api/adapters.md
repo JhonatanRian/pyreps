@@ -1,6 +1,6 @@
 # Adapters
 
-Adapters normalizam fontes de dados diversas em iteráveis de registros.
+Adapters normalize various data sources into iterables of records.
 
 ## ListDictAdapter
 
@@ -24,4 +24,4 @@ Adapters normalizam fontes de dados diversas em iteráveis de registros.
 
 ## Custom Adapter
 
-Veja [Fontes de Dados — Custom Adapter](../guide/datasources.md#custom-adapter) para um exemplo completo.
+See [Data Sources — Custom Adapter](../guide/datasources.md#custom-adapter) for a complete example.

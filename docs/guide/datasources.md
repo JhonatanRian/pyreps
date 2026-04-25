@@ -1,22 +1,22 @@
-# Fontes de Dados
+# Data Sources
 
-O **pyreps** aceita dados de múltiplas fontes via adapters. A detecção é automática para os tipos mais comuns.
+**pyreps** accepts data from multiple sources via adapters. Detection is automatic for the most common types.
 
 ## list[dict] — ListDictAdapter
 
-A forma mais direta. Aceita qualquer iterável de dicts:
+The most direct way. Accepts any iterable of dicts:
 
 ```python
 data = [
-    {"id": 1, "nome": "Ana"},
-    {"id": 2, "nome": "Bruno"},
+    {"id": 1, "name": "Ana"},
+    {"id": 2, "name": "Bruno"},
 ]
 
 generate_report(data_source=data, spec=spec, destination="out.csv")
 ```
 
 !!! tip "Generators"
-    Aceita generators e iteráveis lazy — perfeito para processar dados sob demanda:
+    Accepts generators and lazy iterables — perfect for processing data on demand:
 
     ```python
     def fetch_records():
@@ -28,46 +28,46 @@ generate_report(data_source=data, spec=spec, destination="out.csv")
 
 ## JSON — JsonAdapter
 
-Aceita strings JSON, bytes, dicts e listas. Parsing via **orjson** (Rust, ~6x mais rápido que stdlib).
+Accepts JSON strings, bytes, dicts, and lists. Parsing via **orjson** (Rust, ~6x faster than stdlib).
 
-=== "String JSON"
+=== "JSON String"
 
     ```python
-    payload = '[{"id": 1, "nome": "Ana"}, {"id": 2, "nome": "Bruno"}]'
+    payload = '[{"id": 1, "name": "Ana"}, {"id": 2, "name": "Bruno"}]'
     generate_report(data_source=payload, spec=spec, destination="out.csv")
     ```
 
-=== "Objeto com items"
+=== "Object with items"
 
     ```python
-    # Extrai automaticamente a chave "items"
+    # Automatically extracts the "items" key
     payload = '{"total": 2, "items": [{"id": 1}, {"id": 2}]}'
     generate_report(data_source=payload, spec=spec, destination="out.csv")
     ```
 
-=== "Objeto único"
+=== "Single object"
 
     ```python
-    payload = '{"id": 1, "nome": "Ana"}'  # wrap automático em lista
+    payload = '{"id": 1, "name": "Ana"}'  # auto-wrap in list
     generate_report(data_source=payload, spec=spec, destination="out.csv")
     ```
 
 ## JSON Streaming — JsonStreamingAdapter
 
-Para arquivos JSON gigantescos (500MB+) ou streams I/O, utilize o `JsonStreamingAdapter`. Ele utiliza a biblioteca **ijson** para ler o arquivo iterativamente, mantendo o consumo de memória constante.
+For massive JSON files (500MB+) or I/O streams, use `JsonStreamingAdapter`. It uses the **ijson** library to read the file iteratively, keeping memory consumption constant.
 
 ```python
 from pyreps import JsonStreamingAdapter, generate_report
 
-# Lendo de um caminho de arquivo
+# Reading from a file path
 generate_report(
-    data_source="gigante.json",
+    data_source="gigantic.json",
     spec=spec,
     destination="out.csv",
     input_adapter=JsonStreamingAdapter(item_path="item")
 )
 
-# Lendo de um stream binário (ex: file object aberto em 'rb')
+# Reading from a binary stream (e.g., file object opened in 'rb')
 with open("dump.json", "rb") as f:
     generate_report(
         data_source=f,
@@ -77,14 +77,14 @@ with open("dump.json", "rb") as f:
     )
 ```
 
-!!! info "Caminhos ijson (item_path)"
-    O parâmetro `item_path` define onde os registros estão localizados no JSON:
-    - `"item"`: Para um array na raiz `[{}, {}]`.
-    - `"data.item"`: Para um array dentro de uma chave `{"data": [{}, {}]}`.
+!!! info "ijson Paths (item_path)"
+    The `item_path` parameter defines where the records are located in the JSON:
+    - `"item"`: For an array at the root `[{}, {}]`.
+    - `"data.item"`: For an array inside a key `{"data": [{}, {}]}`.
 
 ## SQL — SqlAdapter
 
-Para queries SQL, use o `SqlAdapter` explicitamente:
+For SQL queries, use `SqlAdapter` explicitly:
 
 ```python
 import sqlite3
@@ -93,7 +93,7 @@ from pyreps import SqlAdapter, generate_report
 conn = sqlite3.connect("app.db")
 
 generate_report(
-    data_source=None,  # dados vêm do adapter
+    data_source=None,  # data comes from the adapter
     spec=spec,
     destination="out.csv",
     input_adapter=SqlAdapter(
@@ -103,13 +103,13 @@ generate_report(
 )
 ```
 
-!!! note "Streaming do cursor"
-    O `SqlAdapter` itera sobre o cursor SQL sem chamar `fetchall()` —
-    ideal para queries que retornam muitos registros.
+!!! note "Cursor Streaming"
+    The `SqlAdapter` iterates over the SQL cursor without calling `fetchall()` —
+    ideal for queries that return many records.
 
 ## Custom Adapter
 
-Implemente o protocolo `InputAdapter` para qualquer fonte de dados:
+Implement the `InputAdapter` protocol for any data source:
 
 ```python
 from collections.abc import Iterable, Mapping
@@ -125,7 +125,7 @@ class MongoAdapter(InputAdapter):
 
     def adapt(self, data_source: Any) -> Iterable[Record]:
         for doc in self._collection.find(self._query):
-            yield doc  # MongoDB docs já são dicts
+            yield doc  # MongoDB docs are already dicts
 ```
 
 ```python
@@ -137,11 +137,11 @@ generate_report(
 )
 ```
 
-## Detecção Automática
+## Automatic Detection
 
-| Tipo do `data_source` | Adapter selecionado |
+| `data_source` type | Selected Adapter |
 |----------------------|---------------------|
 | `str`, `bytes`, `bytearray` | `JsonAdapter` |
 | `dict` (Mapping) | `JsonAdapter` |
-| Qualquer `Iterable` | `ListDictAdapter` |
-| Outro | Erro — passe `input_adapter` explicitamente |
+| Any `Iterable` | `ListDictAdapter` |
+| Other | Error — pass `input_adapter` explicitly |

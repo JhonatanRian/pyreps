@@ -1,19 +1,19 @@
-# Tipos Declarativos
+# Declarative Types
 
-O `ColumnSpec` aceita um parâmetro `type` opcional que realiza **coerção automática** dos valores extraídos.
+`ColumnSpec` accepts an optional `type` parameter that performs **automatic coercion** of the extracted values.
 
-## Tipos Disponíveis
+## Available Types
 
-| Tipo | Python | Exemplo de entrada | Resultado |
+| Type | Python | Input example | Result |
 |------|--------|-------------------|-----------|
 | `"str"` | `str` | `42` | `"42"` |
 | `"int"` | `int` | `"7"` | `7` |
 | `"float"` | `float` | `"3.14"` | `3.14` |
-| `"bool"` | `bool` | `"true"` / `"sim"` | `True` |
+| `"bool"` | `bool` | `"true"` / `"yes"` | `True` |
 | `"date"` | `datetime.date` | `"2025-06-15"` | `date(2025, 6, 15)` |
 | `"datetime"` | `datetime.datetime` | `"2025-06-15T10:30:00"` | `datetime(...)` |
 
-## Uso Básico
+## Basic Usage
 
 ```python
 from pyreps import ColumnSpec, ReportSpec
@@ -22,69 +22,69 @@ spec = ReportSpec(
     output_format="csv",
     columns=[
         ColumnSpec(label="ID", source="id", type="int"),
-        ColumnSpec(label="Ativo", source="active", type="bool"),
-        ColumnSpec(label="Criado em", source="created_at", type="date"),
+        ColumnSpec(label="Active", source="active", type="bool"),
+        ColumnSpec(label="Created at", source="created_at", type="date"),
     ],
 )
 ```
 
-!!! tip "Opcional e retrocompatível"
-    `type=None` (padrão) mantém o valor como veio da fonte — zero atrito para quem não precisa.
+!!! tip "Optional and backward compatible"
+    `type=None` (default) keeps the value exactly as it came from the source — zero friction for those who don't need it.
 
-## Ordem de Execução
+## Execution Order
 
-O pipeline de processamento de cada campo segue esta ordem:
+The processing pipeline for each field follows this order:
 
 ```mermaid
 graph LR
-    A["Extrair valor"] --> B{"Existe?"}
-    B -->|Não| C["required → erro"]
-    B -->|Não| D["default"]
-    B -->|Sim| E["Coerção (type)"]
+    A["Extract value"] --> B{"Exists?"}
+    B -->|No| C["required → error"]
+    B -->|No| D["default"]
+    B -->|Yes| E["Coercion (type)"]
     D --> E
     E --> F["Formatter"]
-    F --> G["Valor final"]
+    F --> G["Final value"]
 ```
 
-1. **Extração** via dot notation (`source`)
-2. **Validação** de campos obrigatórios (`required`)
-3. **Default** para campos ausentes
-4. **Coerção** para o tipo declarado (`type`)
-5. **Formatter** recebe o valor já tipado
+1. **Extraction** via dot notation (`source`)
+2. **Validation** of mandatory fields (`required`)
+3. **Default** for missing fields
+4. **Coercion** to the declared type (`type`)
+5. **Formatter** receives the already typed value
 
-!!! example "Formatter com tipo"
+!!! example "Typed Formatter"
     ```python
     ColumnSpec(
-        label="Data",
+        label="Date",
         source="created_at",
         type="date",  # coerce string → date object
-        formatter=lambda d: d.strftime("%d/%m/%Y"),  # recebe date, não string
+        formatter=lambda d: d.strftime("%d/%m/%Y"),  # receives date, not string
     )
     ```
 
-## Formatos de Data Aceitos
+## Accepted Date Formats
 
 ### `date`
 
-| Formato | Exemplo |
+| Format | Example |
 |---------|---------|
 | ISO 8601 | `2025-06-15` |
 | BR | `15/06/2025` |
 | US | `06/15/2025` |
-| `datetime` objeto | Extrai `.date()` |
+| `datetime` object | Extracts `.date()` |
 
 ### `datetime`
 
-| Formato | Exemplo |
+| Format | Example |
 |---------|---------|
 | ISO 8601 | `2025-06-15T10:30:00` |
-| Espaço | `2025-06-15 10:30:00` |
+| Space | `2025-06-15 10:30:00` |
 | BR | `15/06/2025 10:30:00` |
-| `date` objeto | Converte para `datetime` à meia-noite |
+| `date` object | Converts to `datetime` at midnight |
 
-## Bool — Valores Aceitos
+## Bool — Accepted Values
 
-A coerção de bool aceita strings em **pt-BR e en-US**:
+Boolean coercion accepts strings in both **pt-BR and en-US**:
 
 === "Truthy"
 
@@ -94,15 +94,15 @@ A coerção de bool aceita strings em **pt-BR e en-US**:
 
     `"false"`, `"0"`, `"no"`, `"não"`, `"nao"`, `"off"`
 
-Valores `int` e `float` seguem a regra padrão do Python (`0` → `False`, qualquer outro → `True`).
+`int` and `float` values follow standard Python rules (`0` → `False`, anything else → `True`).
 
-## Erros de Coerção
+## Coercion Errors
 
-Se a conversão falhar, um `MappingError` é levantado com contexto:
+If the conversion fails, a `MappingError` is raised with context:
 
 ```
 MappingError: cannot coerce field 'total' value 'abc' to type 'int' in record index 3
 ```
 
-!!! note "None passa direto"
-    Valores `None` nunca são coercidos — passam como `None` independente do tipo declarado.
+!!! note "None passes through"
+    `None` values are never coerced — they pass through as `None` regardless of the declared type.

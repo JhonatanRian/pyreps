@@ -1,6 +1,6 @@
-# Início Rápido
+# Quickstart
 
-## Instalação
+## Installation
 
 === "pip"
 
@@ -20,124 +20,124 @@
     poetry add pyreps
     ```
 
-## Conceitos Básicos
+## Core Concepts
 
-O **pyreps** funciona em 3 passos:
+**pyreps** works in 3 steps:
 
-1. **Definir colunas** com `ColumnSpec` — o que extrair e como formatar.
-2. **Criar a spec** com `ReportSpec` — formato de saída e metadados.
-3. **Gerar** com `generate_report` — passar os dados e o destino.
+1. **Define columns** with `ColumnSpec` — what to extract and how to format.
+2. **Create the spec** with `ReportSpec` — output format and metadata.
+3. **Generate** with `generate_report` — pass the data and the destination.
 
 ```mermaid
 graph LR
-    A["Seus Dados"] --> B["ColumnSpec[]"]
+    A["Your Data"] --> B["ColumnSpec[]"]
     B --> C["ReportSpec"]
     C --> D["generate_report()"]
-    D --> E["📄 Arquivo"]
+    D --> E["📄 File"]
 ```
 
-## Gerando um CSV
+## Generating a CSV
 
 ```python
 from pyreps import ColumnSpec, ReportSpec, generate_report
 
 data = [
-    {"id": 1, "nome": "Ana Silva", "valor": 1500.00},
-    {"id": 2, "nome": "Bruno Costa", "valor": 3200.50},
-    {"id": 3, "nome": "Carla Lima", "valor": 890.75},
+    {"id": 1, "name": "Ana Silva", "value": 1500.00},
+    {"id": 2, "name": "Bruno Costa", "value": 3200.50},
+    {"id": 3, "name": "Carla Lima", "value": 890.75},
 ]
 
 spec = ReportSpec(
     output_format="csv",
     columns=[
         ColumnSpec(label="ID", source="id", type="int", required=True),
-        ColumnSpec(label="Nome", source="nome", type="str"),
-        ColumnSpec(label="Valor", source="valor", type="float",
-                   formatter=lambda v: f"R$ {v:,.2f}"),
+        ColumnSpec(label="Name", source="name", type="str"),
+        ColumnSpec(label="Value", source="value", type="float",
+                   formatter=lambda v: f"$ {v:,.2f}"),
     ],
 )
 
-path = generate_report(data_source=data, spec=spec, destination="relatorio.csv")
-print(f"Relatório gerado em: {path}")
+path = generate_report(data_source=data, spec=spec, destination="report.csv")
+print(f"Report generated at: {path}")
 ```
 
-??? example "Saída: relatorio.csv"
+??? example "Output: report.csv"
 
     ```csv
-    ID,Nome,Valor
-    1,Ana Silva,"R$ 1,500.00"
-    2,Bruno Costa,"R$ 3,200.50"
-    3,Carla Lima,"R$ 890.75"
+    ID,Name,Value
+    1,Ana Silva,"$ 1,500.00"
+    2,Bruno Costa,"$ 3,200.50"
+    3,Carla Lima,"$ 890.75"
     ```
 
-## Gerando um XLSX
+## Generating an XLSX
 
-Basta trocar `output_format`:
+Just switch the `output_format`:
 
 ```python
 spec = ReportSpec(
     output_format="xlsx",
     columns=[
         ColumnSpec(label="ID", source="id", type="int"),
-        ColumnSpec(label="Nome", source="nome"),
-        ColumnSpec(label="Valor", source="valor", type="float"),
+        ColumnSpec(label="Name", source="name"),
+        ColumnSpec(label="Value", source="value", type="float"),
     ],
     metadata={
         "xlsx": {
             "width_mode": "auto",
-            "sheet_name": "Vendas",
+            "sheet_name": "Sales",
         }
     },
 )
 
-generate_report(data_source=data, spec=spec, destination="relatorio.xlsx")
+generate_report(data_source=data, spec=spec, destination="report.xlsx")
 ```
 
-## Gerando um PDF
+## Generating a PDF
 
 ```python
 spec = ReportSpec(
     output_format="pdf",
     columns=[
         ColumnSpec(label="ID", source="id", type="int"),
-        ColumnSpec(label="Nome", source="nome"),
-        ColumnSpec(label="Valor", source="valor", type="float",
-                   formatter=lambda v: f"R$ {v:.2f}"),
+        ColumnSpec(label="Name", source="name"),
+        ColumnSpec(label="Value", source="value", type="float",
+                   formatter=lambda v: f"$ {v:.2f}"),
     ],
 )
 
-generate_report(data_source=data, spec=spec, destination="relatorio.pdf")
+generate_report(data_source=data, spec=spec, destination="report.pdf")
 ```
 
 !!! info "PDF"
-    O PDF é gerado em orientação paisagem (A4) com tabela estilizada,
-    cabeçalho em azul e linhas alternadas.
+    The PDF is generated in landscape orientation (A4) with a styled table, 
+    blue headers, and alternating row colors.
 
-## Dados Aninhados
+## Nested Data
 
-O `ColumnSpec` suporta **dot notation** para extrair campos aninhados:
+`ColumnSpec` supports **dot notation** to extract nested fields:
 
 ```python
 data = [
-    {"pedido": {"id": 1}, "cliente": {"nome": "Ana", "endereco": {"cidade": "SP"}}},
+    {"order": {"id": 1}, "customer": {"name": "Ana", "address": {"city": "SP"}}},
 ]
 
 spec = ReportSpec(
     output_format="csv",
     columns=[
-        ColumnSpec(label="Pedido", source="pedido.id"),
-        ColumnSpec(label="Cliente", source="cliente.nome"),
-        ColumnSpec(label="Cidade", source="cliente.endereco.cidade"),
+        ColumnSpec(label="Order", source="order.id"),
+        ColumnSpec(label="Customer", source="customer.name"),
+        ColumnSpec(label="City", source="customer.address.city"),
     ],
 )
 ```
 
-## Campos Opcionais e Defaults
+## Optional Fields and Defaults
 
 ```python
-ColumnSpec(label="Status", source="status", default="Pendente")
-ColumnSpec(label="Email", source="contato.email", required=True)  # erro se faltar
+ColumnSpec(label="Status", source="status", default="Pending")
+ColumnSpec(label="Email", source="contact.email", required=True)  # error if missing
 ```
 
-!!! tip "Próximo passo"
-    Veja [Tipos Declarativos](types.md) para coerção automática e [Formatos de Saída](formats.md) para opções avançadas.
+!!! tip "Next step"
+    See [Declarative Types](types.md) for automatic coercion and [Output Formats](formats.md) for advanced options.

@@ -1,10 +1,10 @@
 # Performance
 
-O **pyreps** foi projetado para alta performance e baixo consumo de memória.
+**pyreps** is designed for high performance and low memory consumption.
 
-## Pipeline Streaming
+## Streaming Pipeline
 
-Todo o pipeline é **lazy** — dados fluem registro a registro sem acumular em memória:
+The entire pipeline is **lazy** — data flows record by record without accumulating in memory:
 
 ```mermaid
 graph LR
@@ -16,13 +16,13 @@ graph LR
     style C fill:#e8f5e9
 ```
 
-Cada componente é um **generator** Python. O dado entra, é processado e sai — sem listas intermediárias.
+Each component is a Python **generator**. Data enters, is processed, and leaves — with no intermediate lists.
 
 ## Benchmarks
 
-Resultados com 6 colunas, tipos declarativos habilitados:
+Results with 6 columns, declarative types enabled:
 
-| Formato | Registros | Tempo | Peak RAM | Arquivo | rows/s |
+| Format | Records | Time | Peak RAM | File | rows/s |
 |---------|-----------|-------|----------|---------|--------|
 | CSV | 1K | 0.03s | **0.16 MB** | 0.06 MB | 33K |
 | CSV | 10K | 0.30s | **0.16 MB** | 0.63 MB | 33K |
@@ -35,51 +35,51 @@ Resultados com 6 colunas, tipos declarativos habilitados:
 | PDF | 1K | 6.0s | 16.2 MB | 0.11 MB | 165 |
 | PDF | 10K | 151s | 158 MB | 1.06 MB | 65 |
 
-!!! success "Memória constante (CSV/XLSX)"
-    CSV e XLSX mantêm **< 1 MB** de RAM Python independente do volume de dados.
+!!! success "Constant Memory (CSV/XLSX)"
+    CSV and XLSX maintain **< 1 MB** of Python RAM regardless of the data volume.
 
-!!! info "PDF: memória O(chunk_size)"
-    O PDF usa streaming por chunks de 200 linhas (configurável). Peak RAM é proporcional a `chunk_size × n_colunas`, não ao total de registros. Veja [Formatos → PDF](formats.md#pdf) para detalhes.
+!!! info "PDF: Memory O(chunk_size)"
+    The PDF uses streaming by 200-row chunks (configurable). Peak RAM is proportional to `chunk_size × n_columns`, not to the total records. See [Formats → PDF](formats.md#pdf) for details.
 
-## Stack de Performance
+## Performance Stack
 
-| Componente | Lib | Linguagem | Por quê |
+| Component | Library | Language | Why |
 |-----------|-----|-----------|---------|
-| JSON parsing | `orjson` | **Rust** | ~6x mais rápido que `json` stdlib |
-| XLSX escrita | `rustpy-xlsxwriter` | **Rust** | Escrita nativa, aceita generators |
-| XLSX widths | ZIP streaming | **Python** | Patch em chunks de 64KB, sem DOM |
-| CSV | `csv` stdlib | **C** | Módulo nativo, o mais rápido possível |
-| PDF | `reportlab` | **Python + C** | Core em C, padrão da indústria |
+| JSON parsing | `orjson` | **Rust** | ~6x faster than `json` stdlib |
+| XLSX writing | `rustpy-xlsxwriter` | **Rust** | Native writing, accepts generators |
+| XLSX widths | ZIP streaming | **Python** | Patching in 64KB chunks, no DOM |
+| CSV | `csv` stdlib | **C** | Native module, as fast as possible |
+| PDF | `reportlab` | **Python + C** | C core, industry standard |
 
-## Dicas de Otimização
+## Optimization Tips
 
-### Use generators como data source
+### Use generators as data source
 
 ```python
-# ❌ Materializa tudo antes de começar
+# ❌ Materializes everything before starting
 data = [row for row in fetch_all_rows()]
 generate_report(data_source=data, ...)
 
-# ✅ Streaming — memória constante
+# ✅ Streaming — constant memory
 def stream():
     for page in paginate():
         yield from page
 generate_report(data_source=stream(), ...)
 ```
 
-### Prefira CSV/XLSX para grandes volumes
+### Prefer CSV/XLSX for large volumes
 
-O PDF processa dados em chunks de 200 linhas (configurável via `metadata["pdf"]["chunk_size"]`), mantendo memória proporcional ao tamanho do chunk — não ao total de registros. Mesmo assim, a velocidade (~165 rows/s) é muito inferior a CSV/XLSX. Para datasets acima de 50K linhas, prefira CSV ou XLSX.
+PDF processes data in 200-row chunks (configurable via `metadata["pdf"]["chunk_size"]`), keeping memory proportional to the chunk size — not to the total records. Even so, the speed (~165 rows/s) is much lower than CSV/XLSX. For datasets above 50K rows, prefer CSV or XLSX.
 
-### XLSX — modo `manual` para máxima velocidade
+### XLSX — `manual` mode for maximum speed
 
-O modo `auto`/`mixed` calcula larguras durante o streaming (overhead mínimo). Se não precisar de largura automática:
+The `auto`/`mixed` mode calculates widths during streaming (minimal overhead). If you don't need automatic width:
 
 ```python
 metadata={"xlsx": {"width_mode": "manual", "default_width": 15.0}}
 ```
 
-## Reproduzindo os Benchmarks
+## Reproducing Benchmarks
 
 ```bash
 uv run python benchmarks/bench_performance.py

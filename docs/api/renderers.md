@@ -1,6 +1,6 @@
 # Renderers
 
-Renderers transformam dados mapeados em arquivos de saída.
+Renderers transform mapped data into output files.
 
 ## CsvRenderer
 
@@ -20,10 +20,10 @@ Renderers transformam dados mapeados em arquivos de saída.
 
 ## Registry
 
-A função `default_renderer_registry()` retorna os renderers padrão:
+The `default_renderer_registry()` function returns the default renderers:
 
 ```python
 {"csv": CsvRenderer(), "xlsx": XlsxRenderer(), "pdf": PdfRenderer()}
 ```
 
-Você pode injetar renderers customizados via `renderer_registry` em `generate_report()`.
+You can inject custom renderers via `renderer_registry` in `generate_report()`.

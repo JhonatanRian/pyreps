@@ -1,10 +1,10 @@
-# Formatos de Saída
+# Output Formats
 
-O **pyreps** suporta três formatos de saída, todos configuráveis via `ReportSpec.metadata`.
+**pyreps** supports three output formats, all configurable via `ReportSpec.metadata`.
 
 ## CSV
 
-O formato mais simples e performático. Streaming puro — memória constante.
+The simplest and most performant format. Pure streaming — constant memory.
 
 ```python
 spec = ReportSpec(
@@ -12,23 +12,23 @@ spec = ReportSpec(
     columns=[...],
     metadata={
         "csv": {
-            "delimiter": ";",  # padrão: ","
+            "delimiter": ";",  # default: ","
         }
     },
 )
 ```
 
-| Opção | Tipo | Padrão | Descrição |
+| Option | Type | Default | Description |
 |-------|------|--------|-----------|
-| `delimiter` | `str` | `","` | Separador de campos |
+| `delimiter` | `str` | `","` | Field separator |
 
 ---
 
 ## XLSX
 
-Gerado via **Rust** (`rustpy-xlsxwriter`) com suporte a largura automática de colunas.
+Generated via **Rust** (`rustpy-xlsxwriter`) with automatic column width support.
 
-### Exemplo Completo
+### Full Example
 
 ```python
 spec = ReportSpec(
@@ -39,9 +39,9 @@ spec = ReportSpec(
             "width_mode": "mixed",
             "default_width": 14.0,
             "auto_padding": 2.0,
-            "sheet_name": "Relatório",
+            "sheet_name": "Report",
             "columns": {
-                "Descrição": {"min_width": 20.0, "max_width": 50.0},
+                "Description": {"min_width": 20.0, "max_width": 50.0},
                 "ID": {"width": 8.0},
             },
         }
@@ -49,21 +49,21 @@ spec = ReportSpec(
 )
 ```
 
-### Opções Globais
+### Global Options
 
-| Opção | Tipo | Padrão | Descrição |
+| Option | Type | Default | Description |
 |-------|------|--------|-----------|
-| `width_mode` | `str` | `"mixed"` | Modo de cálculo de largura |
-| `default_width` | `float` | `12.0` | Largura padrão (modo manual) |
-| `auto_padding` | `float` | `1.5` | Padding extra (modo auto) |
-| `sheet_name` | `str` | `"Report"` | Nome da aba |
-| `columns` | `dict` | `{}` | Config por coluna |
+| `width_mode` | `str` | `"mixed"` | Width calculation mode |
+| `default_width` | `float` | `12.0` | Default width (manual mode) |
+| `auto_padding` | `float` | `1.5` | Extra padding (auto mode) |
+| `sheet_name` | `str` | `"Report"` | Sheet name |
+| `columns` | `dict` | `{}` | Per-column configuration |
 
-### Modos de Largura
+### Width Modes
 
 === "manual"
 
-    Todas as colunas usam `default_width`, exceto as que têm `width` explícito.
+    All columns use `default_width`, except those with an explicit `width`.
 
     ```python
     {"width_mode": "manual", "default_width": 15.0}
@@ -71,62 +71,62 @@ spec = ReportSpec(
 
 === "auto"
 
-    Calcula largura baseada no maior conteúdo de cada coluna.
+    Calculates width based on the largest content in each column.
 
     ```python
     {"width_mode": "auto", "auto_padding": 2.0}
     ```
 
-=== "mixed (recomendado)"
+=== "mixed (recommended)"
 
-    Usa `width` explícito quando definido, senão calcula automaticamente.
+    Uses explicit `width` when defined; otherwise, calculates it automatically.
 
     ```python
     {
         "width_mode": "mixed",
-        "columns": {"ID": {"width": 8.0}}  # ID fixo, resto auto
+        "columns": {"ID": {"width": 8.0}}  # fixed ID, rest auto
     }
     ```
 
-### Opções por Coluna
+### Per-column Options
 
-| Opção | Tipo | Descrição |
+| Option | Type | Description |
 |-------|------|-----------|
-| `width` | `float` | Largura fixa (override) |
-| `min_width` | `float` | Largura mínima |
-| `max_width` | `float` | Largura máxima |
+| `width` | `float` | Fixed width (override) |
+| `min_width` | `float` | Minimum width |
+| `max_width` | `float` | Maximum width |
 
 ---
 
 ## PDF
 
-Gerado via **ReportLab** em orientação paisagem A4 com tabela estilizada.
+Generated via **ReportLab** in A4 landscape orientation with a styled table.
 
 ```python
 spec = ReportSpec(
     output_format="pdf",
     columns=[
         ColumnSpec(label="ID", source="id", type="int"),
-        ColumnSpec(label="Nome", source="nome"),
+        ColumnSpec(label="Name", source="name"),
         ColumnSpec(label="Total", source="total", type="float",
-                   formatter=lambda v: f"R$ {v:.2f}"),
+                   formatter=lambda v: f"$ {v:.2f}"),
     ],
 )
 ```
 
-!!! info "Características do PDF"
-    - **Orientação**: Paisagem (A4)
-    - **Cabeçalho**: Azul (#2563EB) com texto branco em negrito
-    - **Linhas alternadas**: Branco / cinza claro (#F1F5F9)
-    - **Largura de colunas**: Proporcional ao conteúdo (automática)
-    - **Streaming por chunks**: Dados processados em blocos de 200 linhas (configurável)
+!!! info "PDF Features"
+    - **Orientation**: Landscape (A4)
+    - **Header**: Blue (#2563EB) with white bold text
+    - **Alternating rows**: White / Light Gray (#F1F5F9)
+    - **Column width**: Proportional to content (automatic)
+    - **Chunked streaming**: Data processed in blocks of 200 rows (configurable)
 
-### Opções
+### Options
 
-| Opção | Tipo | Padrão | Descrição |
+| Option | Type | Default | Description |
 |-------|------|--------|-----------|
-| `chunk_size` | `int` | `200` | Número de linhas por chunk. Menor = menos RAM, maior = menos overhead. |
-| `paragraph_threshold` | `int` | `30` | Limite de caracteres para usar `Paragraph` com quebra de linha automática. |
+| `chunk_size` | `int` | `200` | Number of rows per chunk. Lower = less RAM, higher = less overhead. |
+| `paragraph_threshold` | `int` | `30` | Character limit to use `Paragraph` with automatic line breaks. |
 
 ```python
 spec = ReportSpec(
@@ -134,14 +134,14 @@ spec = ReportSpec(
     columns=[...],
     metadata={
         "pdf": {
-            "chunk_size": 100,  # menos memória por chunk
+            "chunk_size": 100,  # less memory per chunk
         }
     },
 )
 ```
 
-!!! warning "Modelo de memória"
-    O PDF usa **streaming por chunks** — cada bloco de `chunk_size` linhas é renderizado
-    e descartado antes de processar o próximo. A memória peak é **O(chunk_size × n_colunas)**,
-    não O(n). Mesmo assim, PDF é ~200x mais lento que CSV/XLSX.
-    Para datasets acima de 50K linhas, prefira CSV ou XLSX.
+!!! warning "Memory Model"
+    PDF uses **chunked streaming** — each block of `chunk_size` rows is rendered and 
+    discarded before processing the next one. Peak memory is **O(chunk_size × n_columns)**, 
+    not O(n). Still, PDF is ~200x slower than CSV/XLSX.
+    For datasets over 50K rows, prefer CSV or XLSX.
