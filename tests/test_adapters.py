@@ -322,3 +322,55 @@ def test_json_streaming_adapter_raises_for_invalid_json() -> None:
     adapter = JsonStreamingAdapter()
     with pytest.raises(InputAdapterError, match="JSON streaming parse error"):
         list(adapter.adapt(stream))
+
+
+def test_list_dict_adapter_rejects_bytes() -> None:
+    adapter = ListDictAdapter()
+    with pytest.raises(InputAdapterError, match="requires an iterable of mappings"):
+        list(adapter.adapt(b"invalid"))
+
+
+def test_list_dict_adapter_rejects_str() -> None:
+    adapter = ListDictAdapter()
+    with pytest.raises(InputAdapterError, match="requires an iterable of mappings"):
+        list(adapter.adapt("invalid"))
+
+
+def test_list_dict_adapter_rejects_int() -> None:
+    adapter = ListDictAdapter()
+    with pytest.raises(InputAdapterError, match="requires an iterable of mappings"):
+        list(adapter.adapt(123))  # type: ignore
+
+
+def test_json_adapter_rejects_primitive_json() -> None:
+    adapter = JsonAdapter()
+    # JSON that parses to a string, not a list or dict
+    with pytest.raises(InputAdapterError, match="must resolve to a list of records"):
+        list(adapter.adapt('"just a string"'))
+
+
+def test_json_adapter_raises_for_invalid_json_text() -> None:
+    adapter = JsonAdapter()
+    with pytest.raises(InputAdapterError, match="Failed to parse JSON"):
+        list(adapter.adapt("{invalid}"))
+
+
+def test_json_streaming_adapter_fails_to_open_file(tmp_path: Path) -> None:
+    adapter = JsonStreamingAdapter()
+    # A directory cannot be opened with open(..., "rb")
+    with pytest.raises(InputAdapterError, match="Streaming JSON failed"):
+        list(adapter.adapt(tmp_path))
+
+
+def test_json_streaming_adapter_rejects_invalid_type() -> None:
+    adapter = JsonStreamingAdapter()
+    with pytest.raises(InputAdapterError, match="JsonStreamingAdapter expects"):
+        list(adapter.adapt(123))  # type: ignore
+
+
+def test_sql_adapter_raises_for_no_description() -> None:
+    cursor = MockDBCursor(description=None)
+    conn = MockDBConnection(cursor_obj=cursor)
+    adapter = SqlAdapter(query="INSERT INTO foo VALUES (1)", connection=conn)
+    with pytest.raises(InputAdapterError, match="SQL query did not return rows"):
+        list(adapter.adapt(None))
