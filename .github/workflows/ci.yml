@@ -30,9 +30,13 @@ jobs:
         
       - name: Run Memory Stability Tests
         run: uv run pytest -m memory tests/test_memory_stability.py
+        env:
+          PYTHONPATH: .
         
       - name: Run Performance Benchmark
         run: uv run python scripts/benchmark_memory.py
+        env:
+          PYTHONPATH: .
         
       - name: Upload Memory Report
         uses: actions/upload-artifact@v4

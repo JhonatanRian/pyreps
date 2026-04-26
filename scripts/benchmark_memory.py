@@ -18,6 +18,7 @@ from tests.utils_memory import MemoryTracker
 @dataclass(frozen=True, slots=True)
 class BenchmarkResult:
     """Stores benchmark metrics for a single run."""
+
     format: str
     records: int
     time_s: float
@@ -56,17 +57,17 @@ SPEC_PDF = ReportSpec(columns=COLUMNS, output_format="pdf")
 def _run_benchmark(fmt: str, spec: ReportSpec, n: int, tmpdir: Path) -> BenchmarkResult:
     """Executes a single benchmark run and captures performance data."""
     gc.collect()
-    
+
     t0 = time.perf_counter()
     dest = tmpdir / f"bench_{fmt}_{n}.{fmt}"
-    
+
     with MemoryTracker() as tracker:
         result_path = generate_report(
             data_source=_generate_records(n),
             spec=spec,
             destination=str(dest),
         )
-    
+
     elapsed = time.perf_counter() - t0
     peak_mb = tracker.result.peak_rss_mb
     file_size = result_path.stat().st_size
@@ -81,15 +82,17 @@ def _run_benchmark(fmt: str, spec: ReportSpec, n: int, tmpdir: Path) -> Benchmar
     )
 
 
-def save_markdown_report(results: list[BenchmarkResult], output_path: str = "memory_report.md") -> None:
+def save_markdown_report(
+    results: list[BenchmarkResult], output_path: str = "memory_report.md"
+) -> None:
     """Generates a Markdown report from benchmark results."""
     md_lines = [
         "# Memory & Performance Report",
         "",
         "| Format | Records | Time (s) | Peak RAM (MB) | File (MB) | Rows/s |",
-        "| :--- | :---: | :---: | :---: | :---: | :---: |"
+        "| :--- | :---: | :---: | :---: | :---: | :---: |",
     ]
-    
+
     for r in results:
         line = f"| {r.format} | {r.records:,} | {r.time_s:.3f} | {r.peak_mem_mb:.2f} | {r.file_size_mb:.2f} | {r.rows_per_sec:,} |"
         md_lines.append(line)

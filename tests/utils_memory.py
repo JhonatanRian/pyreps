@@ -13,8 +13,9 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class MemoryResult:
     """Immutable result of a memory tracking session."""
+
     peak_rss_bytes: int
-    
+
     @property
     def peak_rss_mb(self) -> float:
         """Peak Resident Set Size in Megabytes."""
@@ -24,10 +25,10 @@ class MemoryResult:
 class MemoryTracker:
     """
     Tracks peak RSS memory usage using a background polling thread and OS-level High Water Mark.
-    
+
     This tracker captures both Python allocations and native allocations from Rust/C extensions.
     """
-    
+
     def __init__(self, interval: float = 0.05) -> None:
         self.interval = interval
         self._peak_rss: int = 0
@@ -59,29 +60,31 @@ class MemoryTracker:
     def stop(self) -> MemoryResult:
         """
         Stops the tracking thread and returns the peak RSS observed.
-        
+
         Also incorporates resource.getrusage for the OS-level peak (High Water Mark).
         """
         self._stop_event.set()
         if self._thread:
             self._thread.join()
-        
+
         # Cross-verify with OS-level maximum RSS (High Water Mark)
         # Note: on Linux, ru_maxrss is in kilobytes.
         os_peak_kb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         os_peak_bytes = os_peak_kb * 1024
-        
+
         with self._lock:
             final_peak = max(self._peak_rss, os_peak_bytes)
             self._result = MemoryResult(peak_rss_bytes=final_peak)
-            
+
         return self._result
 
     @property
     def result(self) -> MemoryResult:
         """Returns the result of the tracking session. Must be called after stop() or __exit__."""
         if self._result is None:
-            raise RuntimeError("MemoryTracker result is not available. Did you stop the tracker?")
+            raise RuntimeError(
+                "MemoryTracker result is not available. Did you stop the tracker?"
+            )
         return self._result
 
     def __enter__(self) -> Self:
@@ -89,9 +92,9 @@ class MemoryTracker:
         return self
 
     def __exit__(
-        self, 
-        exc_type: Optional[type[BaseException]], 
-        exc_val: Optional[BaseException], 
-        exc_tb: Optional["TracebackType"]
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional["TracebackType"],
     ) -> None:
         self.stop()
