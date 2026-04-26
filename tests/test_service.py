@@ -162,7 +162,7 @@ def test_generate_report_removes_partial_file_on_error(
     tmp_path: Path, caplog: pytest.LogCaptureFixture
 ) -> None:
     class CrashingRenderer(Renderer):
-        def render(self, rows, spec, destination):
+        def render(self, rows, spec, destination, progress_context):
             path = Path(destination)
             path.write_text("partial data")
             raise RuntimeError("something went wrong")

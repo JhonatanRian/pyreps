@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import logging
 import time
 from collections.abc import Generator, Iterable, Mapping
@@ -8,11 +9,22 @@ from pathlib import Path
 from typing import Any
 
 from .adapters import JsonAdapter, ListDictAdapter
-from .contracts import InputAdapter, Renderer, ReportSpec
+from .contracts import (
+    InputAdapter,
+    NullProgressContext,
+    ProgressCallback,
+    ProgressContext,
+    ProgressInfo,
+    Record,
+    Renderer,
+    ReportSpec,
+)
 from .exceptions import InputAdapterError, MappingError, ReportError
 from .mapping import map_records
 from .renderers import default_renderer_registry
 from .utils.records import track_stream
+
+from dataclasses import dataclass, field
 
 logger = logging.getLogger("pyreps")
 
@@ -46,6 +58,56 @@ def _report_transaction(
         raise
 
 
+@dataclass(slots=True)
+class ReportProgressContext(ProgressContext):
+    """Default implementation for progress tracking in report generation."""
+
+    callback: ProgressCallback
+    total_rows: int | None = None
+    current_stage: str = "initializing"
+    start_time: float = field(default_factory=time.perf_counter)
+    total_processed: int = 0
+
+    def set_stage(self, stage_name: str) -> None:
+        self.current_stage = stage_name
+        self._fire_callback(self.total_processed)
+
+    def track_rows(
+        self, rows: Iterable[Record], chunk_size: int = 1000
+    ) -> Generator[Record, None, None]:
+        # Performance: itertools.batched (C implementation) is ~2x faster than
+        # manual countdown for grouping rows in Python 3.12+.
+        processed = self.total_processed
+        fire = self._fire_callback
+
+        for chunk in itertools.batched(rows, chunk_size):
+            for row in chunk:
+                yield row
+            processed += len(chunk)
+            self.total_processed = processed
+            fire(processed)
+
+    def finish(self) -> None:
+        self._fire_callback(self.total_processed)
+
+    def _fire_callback(self, rows_processed: int) -> None:
+        elapsed = time.perf_counter() - self.start_time
+        estimated_completion = None
+
+        if self.total_rows and rows_processed > 0:
+            # Simple linear estimation
+            estimated_completion = (elapsed / rows_processed) * self.total_rows
+
+        self.callback(
+            ProgressInfo(
+                total_rows_processed=rows_processed,
+                current_stage=self.current_stage,
+                elapsed_seconds=elapsed,
+                estimated_completion=estimated_completion,
+            )
+        )
+
+
 def generate_report[T](
     *,
     data_source: T,
@@ -53,13 +115,27 @@ def generate_report[T](
     destination: str | Path,
     input_adapter: InputAdapter[T] | None = None,
     renderer_registry: dict[str, Renderer] | None = None,
+    progress_callback: ProgressCallback | None = None,
+    total_rows: int | None = None,
 ) -> Path:
+    progress_ctx: ProgressContext = (
+        ReportProgressContext(progress_callback, total_rows)
+        if progress_callback
+        else NullProgressContext()
+    )
+
+    progress_ctx.set_stage("resolving_adapter")
+
     adapter = input_adapter or _resolve_adapter(data_source)
     logger.debug("adapter resolved: %s", type(adapter).__name__)
+
+    progress_ctx.set_stage("adapting_data")
 
     records = adapter.adapt(data_source)
     # Rastreia erros de streaming vindos do adaptador (ex: queda de conexão SQL)
     tracked_records = track_stream(records, "adapter", InputAdapterError)
+
+    progress_ctx.set_stage("mapping_records")
 
     mapped_rows = map_records(tracked_records, spec)
     # Rastreia erros de mapeamento e coerção durante o streaming
@@ -72,7 +148,13 @@ def generate_report[T](
 
     output_path = Path(destination)
     with _report_transaction(output_path, spec.output_format):
-        return renderer.render(tracked_rows, spec, output_path)
+        result = renderer.render(
+            tracked_rows, spec, output_path, progress_context=progress_ctx
+        )
+
+    progress_ctx.finish()
+
+    return result
 
 
 def _resolve_adapter(data_source: Any) -> InputAdapter[Any]:

@@ -135,6 +135,66 @@ class DBConnection(Protocol):
     def cursor(self) -> DBCursor: ...
 
 
+@dataclass(slots=True, frozen=True)
+class ProgressInfo:
+    """
+    Data snapshot emitted by a progress callback.
+
+    Attributes:
+        total_rows_processed: Number of rows successfully processed so far.
+        current_stage: Human-readable name of the current generation phase.
+        elapsed_seconds: Time elapsed since the beginning of generation.
+        estimated_completion: Optional estimated total time to complete (seconds).
+    """
+
+    total_rows_processed: int
+    current_stage: str
+    elapsed_seconds: float
+    estimated_completion: float | None = None
+
+
+type ProgressCallback = Callable[[ProgressInfo], None]
+
+
+class ProgressContext(Protocol):
+    """
+    A context used to track and report generation progress.
+    Usually provided by generate_report and consumed by Renderers.
+    """
+
+    def set_stage(self, stage_name: str) -> None:
+        """Update the current stage name."""
+        ...
+
+    def track_rows(
+        self, rows: Iterable[Record], chunk_size: int = 1000
+    ) -> Iterator[Record]:
+        """
+        Wrap an iterable of rows to track progress during iteration.
+        Fires callbacks every chunk_size iterations.
+        """
+        ...
+
+    def finish(self) -> None:
+        """Signal that generation is complete and fire a final callback."""
+        ...
+
+
+class NullProgressContext:
+    """A ProgressContext implementation that does nothing. (Null Object Pattern)"""
+
+    def set_stage(self, stage_name: str) -> None:
+        pass
+
+    def track_rows(
+        self, rows: Iterable[Record], chunk_size: int = 1000
+    ) -> Iterator[Record]:
+        return iter(rows)
+
+    def finish(self) -> None:
+        pass
+
+
 class InputAdapter[T](Protocol):
     """Normalize a data source to an iterable of mapping records."""
 
@@ -149,4 +209,5 @@ class Renderer(Protocol):
         rows: Iterable[Record],
         spec: ReportSpec,
         destination: str | Path,
+        progress_context: ProgressContext,
     ) -> Path: ...

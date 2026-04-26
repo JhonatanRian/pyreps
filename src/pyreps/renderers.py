@@ -25,7 +25,7 @@ from reportlab.platypus import (
 )
 from rustpy_xlsxwriter import FastExcel
 
-from .contracts import OutputFormat, Record, Renderer, ReportSpec
+from .contracts import OutputFormat, ProgressContext, Record, Renderer, ReportSpec
 from .csv_options import CsvRenderOptions
 from .exceptions import wrap_render_error
 from .pdf_options import PdfRenderOptions
@@ -56,9 +56,12 @@ class CsvRenderer(Renderer):
         rows: Iterable[Record],
         spec: ReportSpec,
         destination: str | Path,
+        progress_context: ProgressContext,
     ) -> Path:
         output_path = prepare_destination(destination)
         options = CsvRenderOptions.from_metadata(spec.metadata)
+
+        progress_context.set_stage("writing_rows")
 
         with output_path.open("w", newline="", encoding=spec.encoding) as handle:
             writer = csv.DictWriter(
@@ -68,7 +71,10 @@ class CsvRenderer(Renderer):
                 extrasaction="ignore",
             )
             writer.writeheader()
-            writer.writerows(rows)
+            writer.writerows(progress_context.track_rows(rows))
+
+        progress_context.set_stage("finalizing")
+
         return output_path
 
 
@@ -80,15 +86,22 @@ class XlsxRenderer(Renderer):
         rows: Iterable[Record],
         spec: ReportSpec,
         destination: str | Path,
+        progress_context: ProgressContext,
     ) -> Path:
         output_path = prepare_destination(destination)
         options = XlsxRenderOptions.from_metadata(spec.metadata)
 
+        progress_context.set_stage("writing_xlsx_rows")
+
         if _needs_width_override(options):
             data, tracker = _get_xlsx_row_stream(rows, spec, options)
             FastExcel(str(output_path), autofit=False).sheet(
-                options.sheet_name, data
+                options.sheet_name,
+                progress_context.track_rows(data),
             ).save()
+
+            progress_context.set_stage("patching_column_widths")
+
             _stream_patch_column_widths(
                 output_path,
                 spec.labels,
@@ -98,8 +111,11 @@ class XlsxRenderer(Renderer):
         else:
             use_autofit = options.width_mode != "manual"
             FastExcel(str(output_path), autofit=use_autofit).sheet(
-                options.sheet_name, rows
+                options.sheet_name,
+                progress_context.track_rows(rows),
             ).save()
+
+        progress_context.set_stage("finalizing_xlsx")
 
         return output_path
 
@@ -161,11 +177,14 @@ class PdfRenderer(Renderer):
         rows: Iterable[Record],
         spec: ReportSpec,
         destination: str | Path,
+        progress_context: ProgressContext,
     ) -> Path:
         output_path = prepare_destination(destination)
         labels = spec.labels
         styles = getSampleStyleSheet()
         normal_style = cast(ParagraphStyle, styles["Normal"])
+
+        progress_context.set_stage("preparing_pdf_document")
 
         doc = StreamingDocTemplate(
             str(output_path),
@@ -213,8 +232,12 @@ class PdfRenderer(Renderer):
             single_label = len(labels) == 1
             is_even = True
 
+            progress_context.set_stage("writing_pdf_rows")
+
+            rows_to_track = progress_context.track_rows(all_rows_iter)
+
             while True:
-                chunk = list(itertools.islice(all_rows_iter, chunk_size))
+                chunk = list(itertools.islice(rows_to_track, chunk_size))
                 if not chunk:
                     break
 
@@ -242,6 +265,9 @@ class PdfRenderer(Renderer):
             yield Spacer(1, 0.5 * cm)
 
         doc.build_from_generator(generate_chunks())
+
+        progress_context.set_stage("finalizing_pdf")
+
         return output_path
 
     def _create_header_table(
