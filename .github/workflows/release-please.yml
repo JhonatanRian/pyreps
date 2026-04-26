@@ -1,0 +1,23 @@
+name: release-please
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          # Tipo de release para Python
+          release-type: python
+          # O arquivo onde a versão está definida
+          version-file: pyproject.toml
+          # Onde o changelog deve ser mantido
+          changelog-path: CHANGELOG.md
