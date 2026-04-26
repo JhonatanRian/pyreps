@@ -5,8 +5,7 @@ from typing import Any, Mapping, NamedTuple
 
 from .coercion import get_coercer_fn, make_format_cache
 from .contracts import Record, ReportSpec
-from .exceptions import MappingError
-
+from .exceptions import MappingError, CoercionError
 
 _MISSING = object()
 
@@ -18,7 +17,9 @@ class ColumnProcessor(NamedTuple):
     flat_key: str | None
     required: bool
     default: Any
-    coercer_fn: Callable[[Any, int], Any] | None
+    coercer_fn: Callable[..., Any] | None
+    requires_cache: bool
+    column_type: str | None
     formatter: Callable[[Any], Any] | None
     source: str
 
@@ -37,8 +38,11 @@ def map_records(
     processors: list[ColumnProcessor] = []
     for column in spec.columns:
         coercer_fn = None
+        requires_cache = False
         if column.type is not None:
-            coercer_fn = get_coercer_fn(column.type, column.source, cache)
+            coercer_fn, requires_cache = get_coercer_fn(
+                column.type, column.source, cache
+            )
 
         is_flat = len(column._source_parts) == 1
         processors.append(
@@ -50,36 +54,52 @@ def map_records(
                 required=column.required,
                 default=column.default,
                 coercer_fn=coercer_fn,
+                requires_cache=requires_cache,
+                column_type=column.type,
                 formatter=column.formatter,
                 source=column.source,
             )
         )
 
-    for index, record in enumerate(records):
+    for record in records:
         row: dict[str, Any] = {}
-        for p in processors:
-            # Fast-path for flat dictionary keys to bypass function call overhead
-            if p.is_flat:
-                value = record.get(p.flat_key, _missing)  # type: ignore[arg-type]
-            else:
-                value = _extract(record, p.parts)
+        # current_p is used to provide context in the except block
+        current_p = processors[0]
+        value: Any = None
+        try:
+            for p in processors:
+                current_p = p
+                # Fast-path for flat dictionary keys to bypass function call overhead
+                if p.is_flat:
+                    value = record.get(p.flat_key, _missing)  # type: ignore[arg-type]
+                else:
+                    value = _extract(record, p.parts)
 
-            if value is _missing:
-                if p.required:
-                    raise _mapping_error(
-                        f"required field '{p.source}' missing in record index {index}"
-                    )
-                value = p.default
+                if value is _missing:
+                    if p.required:
+                        raise _mapping_error(f"required field '{p.source}' missing")
+                    value = p.default
 
-            if value is not None:
-                if p.coercer_fn is not None:
-                    value = p.coercer_fn(value, index)
+                if value is not None:
+                    if p.coercer_fn is not None:
+                        # Performance: Chamada direta ao coercer sem closure/try-except interno
+                        if p.requires_cache:
+                            value = p.coercer_fn(value, cache)
+                        else:
+                            value = p.coercer_fn(value)
 
-                if p.formatter is not None:
-                    value = p.formatter(value)
+                    if p.formatter is not None:
+                        value = p.formatter(value)
 
-            row[p.label] = value
-        yield row
+                row[p.label] = value
+            yield row
+        except (ValueError, TypeError, OverflowError) as exc:
+            # Captura erros de tipo/valor e enriquece com o contexto da coluna atual.
+            # O row_number será injetado pelo track_stream no service.py.
+            raise CoercionError(
+                f"cannot coerce field '{current_p.source}' value {value!r} "
+                f"to type '{current_p.column_type}'"
+            ) from exc
 
 
 def _extract_by_parts(record: Mapping[str, Any], parts: tuple[str, ...]) -> Any:

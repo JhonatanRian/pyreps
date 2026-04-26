@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import functools
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable
 
 
 class ReportError(Exception):
     """Base exception for pyreps."""
+
+    def __init__(self, message: str, row_number: int | None = None) -> None:
+        super().__init__(message)
+        self.row_number = row_number
 
 
 class InputAdapterError(ReportError):
@@ -24,10 +28,11 @@ class RenderError(ReportError):
     """Raised when a renderer fails to produce the output file."""
 
 
-F = TypeVar("F", bound=Callable[..., Any])
+class InvalidSpecError(ReportError):
+    """Raised when the ReportSpec or ColumnSpec configuration is invalid."""
 
 
-def wrap_render_error(format_name: str) -> Callable[[F], F]:
+def wrap_render_error[F: Callable[..., Any]](format_name: str) -> Callable[[F], F]:
     """Decorator to wrap any exception during rendering into a RenderError."""
 
     def decorator(func: F) -> F:
@@ -36,7 +41,7 @@ def wrap_render_error(format_name: str) -> Callable[[F], F]:
             try:
                 return func(*args, **kwargs)
             except Exception as exc:
-                if isinstance(exc, RenderError):
+                if isinstance(exc, ReportError):
                     raise exc
                 raise RenderError(f"Failed to render {format_name}: {exc}") from exc
 

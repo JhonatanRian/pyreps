@@ -6,10 +6,14 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Callable, Iterable, Literal, Mapping, Protocol
 
-OutputFormat = Literal["csv", "xlsx", "pdf"]
-ColumnType = Literal["str", "int", "float", "bool", "date", "datetime"]
-Record = Mapping[str, Any]
-Formatter = Callable[[Any], Any]
+from .exceptions import InvalidSpecError
+from .utils.options import ensure_unique, validate_literal, validate_str
+
+# Python 3.12 Type Aliases (PEP 695)
+type OutputFormat = Literal["csv", "xlsx", "pdf"]
+type ColumnType = Literal["str", "int", "float", "bool", "date", "datetime"]
+type Record = Mapping[str, Any]
+type Formatter = Callable[[Any], Any]
 
 
 @dataclass(slots=True, frozen=True)
@@ -35,8 +39,30 @@ class ColumnSpec:
     _source_parts: tuple[str, ...] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        # Validation using helpers for clarity and consistency
+        validate_str(self.label, "Column label")
+        validate_str(self.source, "Column source")
+
+        if self.type is not None:
+            validate_literal(self.type, ColumnType, "column type")
+
+        if self.formatter is not None and not callable(self.formatter):
+            raise InvalidSpecError(
+                f"Column formatter must be callable, got {self.formatter!r}"
+            )
+
         # Pre-split source for performance in mapping hot-path
         object.__setattr__(self, "_source_parts", tuple(self.source.split(".")))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert ColumnSpec to a dictionary for serialization."""
+        return {
+            "label": self.label,
+            "source": self.source,
+            "required": self.required,
+            "default": self.default,
+            "type": self.type,
+        }
 
 
 @dataclass(slots=True, frozen=True)
@@ -58,13 +84,32 @@ class ReportSpec:
     labels: tuple[str, ...] = field(init=False)
 
     def __post_init__(self) -> None:
+        # Normalization and Validation
+        if not self.columns:
+            raise InvalidSpecError("ReportSpec must have at least one column.")
+
         # Force columns to be a tuple for strict immutability
-        object.__setattr__(self, "columns", tuple(self.columns))
+        if not isinstance(self.columns, tuple):
+            object.__setattr__(self, "columns", tuple(self.columns))
+
+        validate_literal(self.output_format, OutputFormat, "output format")
+
         # Ensure metadata is immutable
         if not isinstance(self.metadata, MappingProxyType):
             object.__setattr__(self, "metadata", MappingProxyType(self.metadata))
-        # Cache labels once as an immutable tuple
-        object.__setattr__(self, "labels", tuple(col.label for col in self.columns))
+
+        # Cache labels once as an immutable tuple and check for duplicates O(N)
+        labels = ensure_unique((col.label for col in self.columns), "column labels")
+        object.__setattr__(self, "labels", labels)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert ReportSpec to a dictionary for serialization."""
+        return {
+            "output_format": self.output_format,
+            "encoding": self.encoding,
+            "columns": [col.to_dict() for col in self.columns],
+            "metadata": dict(self.metadata),
+        }
 
 
 class DBCursor(Protocol):
@@ -90,16 +135,18 @@ class DBConnection(Protocol):
     def cursor(self) -> DBCursor: ...
 
 
-class InputAdapter(Protocol):
-    def adapt(self, data_source: Any) -> Iterable[Record]:
-        """Normalize a data source to an iterable of mapping records."""
+class InputAdapter[T](Protocol):
+    """Normalize a data source to an iterable of mapping records."""
+
+    def adapt(self, data_source: T) -> Iterable[Record]: ...
 
 
 class Renderer(Protocol):
+    """Render normalized rows to a destination path."""
+
     def render(
         self,
-        rows: Iterable[Mapping[str, Any]],
+        rows: Iterable[Record],
         spec: ReportSpec,
         destination: str | Path,
-    ) -> Path:
-        """Render normalized rows to a destination path."""
+    ) -> Path: ...

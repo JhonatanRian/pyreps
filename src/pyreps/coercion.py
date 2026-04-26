@@ -5,10 +5,12 @@ from datetime import date, datetime
 from typing import Any
 
 from .contracts import ColumnType
-from .exceptions import CoercionError
 
 _BOOL_TRUTHY = frozenset({"true", "1", "yes", "sim", "on"})
 _BOOL_FALSY = frozenset({"false", "0", "no", "não", "nao", "off"})
+
+BOOL_STRINGS = _BOOL_TRUTHY | _BOOL_FALSY
+"""Set of all strings interpreted as booleans."""
 
 _DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y")
 _DATETIME_FORMATS = (
@@ -37,7 +39,6 @@ def coerce_value(
     column_type: ColumnType,
     *,
     source: str,
-    record_index: int,
     cache: FormatCache | None = None,
 ) -> Any:
     """Coerce *value* to the declared *column_type*.
@@ -49,31 +50,23 @@ def coerce_value(
         return None
 
     # Reuse the specialized coercer closure to avoid logic duplication
-    coercer_fn = get_coercer_fn(column_type, source, cache or make_format_cache())
-    return coercer_fn(value, record_index)
+    local_cache = cache or make_format_cache()
+    coercer, requires_cache = get_coercer_fn(column_type, source, local_cache)
+    return coercer(value, local_cache) if requires_cache else coercer(value)
 
 
 def get_coercer_fn(
     column_type: ColumnType,
     source: str,
     cache: FormatCache,
-) -> Callable[[Any, int], Any]:
-    """Create a pre-bound coercer closure for the given column type and source."""
+) -> tuple[Callable[..., Any], bool]:
+    """
+    Returns a (coercer_fn, requires_cache) tuple.
+    The coercer_fn is naked (no try/except) to minimize hot-path overhead.
+    """
     coercer = _COERCERS[column_type]
     requires_cache = column_type in _CACHED_TYPES
-
-    def coerce_fn(value: Any, record_index: int) -> Any:
-        try:
-            if requires_cache:
-                return coercer(value, cache)
-            return coercer(value)
-        except (ValueError, TypeError, OverflowError) as exc:
-            raise CoercionError(
-                f"cannot coerce field '{source}' value {value!r} "
-                f"to type '{column_type}' in record index {record_index}"
-            ) from exc
-
-    return coerce_fn
+    return coercer, requires_cache
 
 
 def _coerce_str(value: Any) -> str:
@@ -81,36 +74,51 @@ def _coerce_str(value: Any) -> str:
 
 
 def _coerce_int(value: Any) -> int:
-    if isinstance(value, bool):
+    v_type = type(value)
+    if v_type is int:
+        return value
+    if v_type is float:
+        if value % 1 == 0:
+            return int(value)
+        raise ValueError(f"cannot losslessly convert {value!r} to int")
+    if v_type is str:
         return int(value)
-    if isinstance(value, (float, int)):
-        if value != int(value):
-            raise ValueError(f"cannot losslessly convert {value!r} to int")
+    if v_type is bool:
         return int(value)
-    if isinstance(value, str):
-        return int(value.strip())
     return int(value)
 
 
 def _coerce_float(value: Any) -> float:
-    if isinstance(value, str):
-        return float(value.strip())
+    v_type = type(value)
+    if v_type is float:
+        return value
+    if v_type is int:
+        return float(value)
+    if v_type is str:
+        return float(value)
     return float(value)
 
 
 def _coerce_bool(value: Any) -> bool:
-    if isinstance(value, bool):
+    v_type = type(value)
+    if v_type is bool:
         return value
-    if isinstance(value, (int, float)):
+    if v_type is int or v_type is float:
         return bool(value)
-    if isinstance(value, str):
+    if v_type is str:
+        # Fast-path for common exact matches to avoid strip().lower()
+        if value == "1" or value == "true":
+            return True
+        if value == "0" or value == "false":
+            return False
+
         normalized = value.strip().lower()
         if normalized in _BOOL_TRUTHY:
             return True
         if normalized in _BOOL_FALSY:
             return False
         raise ValueError(f"cannot interpret {value!r} as bool")
-    raise TypeError(f"unsupported type {type(value).__name__} for bool coercion")
+    raise TypeError(f"unsupported type {v_type.__name__} for bool coercion")
 
 
 def _parse_with_cache(
@@ -119,17 +127,41 @@ def _parse_with_cache(
     cache_key: str,
     cache: FormatCache | None,
 ) -> datetime:
-    """Try cached format first, then brute-force all formats. Returns raw datetime."""
-    last_fmt = cache.get(cache_key, "") if cache else ""
-    if last_fmt:
+    """Try cached format first, then structural validation, then brute-force."""
+    if not text:
+        raise ValueError("empty string")
+
+    # Fast path: ISO-like (YYYY-MM-DD...)
+    # Handles: %Y-%m-%d, %Y-%m-%dT%H:%M:%S, %Y-%m-%d %H:%M:%S
+    # fromisoformat is ~40x faster than strptime and handles 'T' or ' ' separators.
+    if len(text) >= 10 and text[4] == "-" and text[7] == "-":
         try:
-            return datetime.strptime(text, last_fmt)
+            return datetime.fromisoformat(text)
         except ValueError:
             pass
+
+    last_fmt = cache.get(cache_key, "") if cache else ""
+    if last_fmt:
+        # Structural check for cached format to avoid expensive ValueError
+        if ("/" in last_fmt and "/" in text) or ("-" in last_fmt and "-" in text):
+            try:
+                return datetime.strptime(text, last_fmt)
+            except ValueError:
+                pass
 
     for fmt in formats:
         if fmt == last_fmt:
             continue
+
+        # Structural validation to avoid expensive strptime call when it will surely fail.
+        # Exceptions are zero-cost in 3.11+ ONLY if not raised.
+        if "/" in fmt:
+            if "/" not in text:
+                continue
+        elif "-" in fmt:
+            if "-" not in text:
+                continue
+
         try:
             result = datetime.strptime(text, fmt)
             if cache is not None:

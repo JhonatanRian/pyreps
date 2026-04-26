@@ -9,9 +9,10 @@ from typing import Any
 
 from .adapters import JsonAdapter, ListDictAdapter
 from .contracts import InputAdapter, Renderer, ReportSpec
-from .exceptions import InputAdapterError, ReportError
+from .exceptions import InputAdapterError, MappingError, ReportError
 from .mapping import map_records
 from .renderers import default_renderer_registry
+from .utils.records import track_stream
 
 logger = logging.getLogger("pyreps")
 
@@ -31,26 +32,38 @@ def _report_transaction(
             destination,
             elapsed,
         )
-    except Exception:
+    except Exception as exc:
         # Performance: unlink(missing_ok=True) é atômico e evita I/O redundante de .exists()
         destination.unlink(missing_ok=True)
-        logger.warning("partial file removed: %s", destination)
+        row_num = getattr(exc, "row_number", None)
+        logger.error(
+            "report generation failed: format=%s destination=%s row_number=%s error_type=%s",
+            output_format,
+            destination,
+            row_num,
+            type(exc).__name__,
+        )
         raise
 
 
-def generate_report(
+def generate_report[T](
     *,
-    data_source: Any,
+    data_source: T,
     spec: ReportSpec,
     destination: str | Path,
-    input_adapter: InputAdapter | None = None,
+    input_adapter: InputAdapter[T] | None = None,
     renderer_registry: dict[str, Renderer] | None = None,
 ) -> Path:
     adapter = input_adapter or _resolve_adapter(data_source)
     logger.debug("adapter resolved: %s", type(adapter).__name__)
 
     records = adapter.adapt(data_source)
-    mapped_rows = map_records(records, spec)
+    # Rastreia erros de streaming vindos do adaptador (ex: queda de conexão SQL)
+    tracked_records = track_stream(records, "adapter", InputAdapterError)
+
+    mapped_rows = map_records(tracked_records, spec)
+    # Rastreia erros de mapeamento e coerção durante o streaming
+    tracked_rows = track_stream(mapped_rows, "mapping", MappingError)
 
     registry = renderer_registry or default_renderer_registry()
     renderer = registry.get(spec.output_format)
@@ -59,10 +72,10 @@ def generate_report(
 
     output_path = Path(destination)
     with _report_transaction(output_path, spec.output_format):
-        return renderer.render(mapped_rows, spec, output_path)
+        return renderer.render(tracked_rows, spec, output_path)
 
 
-def _resolve_adapter(data_source: Any) -> InputAdapter:
+def _resolve_adapter(data_source: Any) -> InputAdapter[Any]:
     if isinstance(data_source, (str, bytes, bytearray)):
         return JsonAdapter()
 

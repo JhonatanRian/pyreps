@@ -169,10 +169,10 @@ def test_generate_report_removes_partial_file_on_error(
 
     data = [{"id": "1"}]
     spec = ReportSpec(
-        output_format="crash", columns=[ColumnSpec(label="ID", source="id")]
+        output_format="csv", columns=[ColumnSpec(label="ID", source="id")]
     )
     destination = tmp_path / "fail.txt"
-    registry = {"crash": CrashingRenderer()}
+    registry = {"csv": CrashingRenderer()}
 
     with pytest.raises(RuntimeError, match="something went wrong"):
         generate_report(
@@ -183,4 +183,6 @@ def test_generate_report_removes_partial_file_on_error(
         )
 
     assert not destination.exists()
-    assert f"partial file removed: {destination}" in caplog.text
+    assert "report generation failed" in caplog.text
+    assert f"destination={destination}" in caplog.text
+    assert "error_type=RuntimeError" in caplog.text
