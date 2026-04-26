@@ -14,7 +14,7 @@ def validate_str(value: Any, field_name: str) -> str:
     return value
 
 
-def validate_literal[T](value: Any, literal_type: T, field_name: str) -> Any:
+def validate_literal(value: Any, literal_type: Any, field_name: str) -> Any:
     """Ensure value is part of a Literal's allowed arguments. Supports PEP 695 aliases."""
     actual_type = getattr(literal_type, "__value__", literal_type)
     allowed = get_args(actual_type)

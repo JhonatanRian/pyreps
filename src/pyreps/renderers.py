@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from collections.abc import Iterable, Mapping, Sequence
 from operator import itemgetter
 from pathlib import Path
-from typing import Any, override
+from typing import Any, override, cast
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
@@ -140,9 +140,9 @@ class StreamingDocTemplate(SimpleDocTemplate):
     """DocTemplate that handles flowables from a generator to avoid memory bottlenecks."""
 
     def build_from_generator(self, flowables_generator: Iterable[Any]) -> None:
-        self._calc()
-        self._startBuild(self.filename)
-        self.canv._doctemplate = self
+        self._calc()  # type: ignore
+        self._startBuild(self.filename)  # type: ignore
+        self.canv._doctemplate = self  # type: ignore
 
         for flowable in flowables_generator:
             f_list = [flowable]
@@ -150,7 +150,7 @@ class StreamingDocTemplate(SimpleDocTemplate):
                 self.clean_hanging()
                 self.handle_flowable(f_list)
 
-        self._endBuild()
+        self._endBuild()  # type: ignore
 
 
 class PdfRenderer(Renderer):
@@ -165,7 +165,7 @@ class PdfRenderer(Renderer):
         output_path = prepare_destination(destination)
         labels = spec.labels
         styles = getSampleStyleSheet()
-        normal_style = styles["Normal"]
+        normal_style = cast(ParagraphStyle, styles["Normal"])
 
         doc = StreamingDocTemplate(
             str(output_path),
@@ -245,11 +245,11 @@ class PdfRenderer(Renderer):
         return output_path
 
     def _create_header_table(
-        self, labels: Sequence[str], col_widths: list[float], style: ParagraphStyle
+        self, labels: Sequence[str], col_widths: Sequence[float], style: ParagraphStyle
     ) -> Table:
         header_table = Table(
             [[Paragraph(f"<b>{label}</b>", style) for label in labels]],
-            colWidths=col_widths,
+            colWidths=col_widths,  # type: ignore[arg-type]
         )
         header_table.setStyle(
             TableStyle(

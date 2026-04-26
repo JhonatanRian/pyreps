@@ -65,6 +65,7 @@ def map_records(
         row: dict[str, Any] = {}
         # current_p is used to provide context in the except block
         current_p = processors[0]
+        value: Any = None
         try:
             for p in processors:
                 current_p = p

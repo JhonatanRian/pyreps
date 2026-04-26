@@ -12,16 +12,20 @@ from .exceptions import (
     ReportError,
 )
 from .service import generate_report
+from .inference import infer_report_spec
 from .xlsx_options import XlsxRenderOptions
 from .pdf_options import PdfRenderOptions
+
+__version__: str
+try:
+    __version__ = version("pyreps")
+except PackageNotFoundError:
+    __version__ = "0.0.0-dev"
 
 
 def __getattr__(name: str) -> Any:
     if name == "__version__":
-        try:
-            return version("pyreps")
-        except PackageNotFoundError:
-            return "0.0.0-dev"
+        return __version__
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -44,5 +48,6 @@ __all__ = [
     "SqlAdapter",
     "XlsxRenderOptions",
     "generate_report",
+    "infer_report_spec",
     "__version__",
 ]
