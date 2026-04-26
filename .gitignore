@@ -4,3 +4,4 @@ __pycache__/
 site/
 .gemini
 .agent
+memory_report.md
