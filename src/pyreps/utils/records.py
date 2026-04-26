@@ -67,6 +67,18 @@ class TupleRecord(Mapping[str, Any]):
         return len(self._col_map)
 
 
+def flatten_record(record: Mapping[str, Any], prefix: str = "") -> Iterator[tuple[str, Any]]:
+    """
+    Flatten a nested record into an iterator of (dot_notation_key, value).
+    """
+    for key, value in record.items():
+        new_key = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, Mapping):
+            yield from flatten_record(value, new_key)
+        else:
+            yield new_key, value
+
+
 def ensure_mapping_stream(
     iterator: Iterator[Any], source_name: str = "Input"
 ) -> Iterator[Mapping[str, Any]]:

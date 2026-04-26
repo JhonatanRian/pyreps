@@ -52,6 +52,16 @@ class ColumnSpec:
         # Pre-split source for performance in mapping hot-path
         object.__setattr__(self, "_source_parts", tuple(self.source.split(".")))
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert ColumnSpec to a dictionary for serialization."""
+        return {
+            "label": self.label,
+            "source": self.source,
+            "required": self.required,
+            "default": self.default,
+            "type": self.type,
+        }
+
 
 @dataclass(slots=True, frozen=True)
 class ReportSpec:
@@ -89,6 +99,15 @@ class ReportSpec:
         # Cache labels once as an immutable tuple and check for duplicates O(N)
         labels = ensure_unique((col.label for col in self.columns), "column labels")
         object.__setattr__(self, "labels", labels)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert ReportSpec to a dictionary for serialization."""
+        return {
+            "output_format": self.output_format,
+            "encoding": self.encoding,
+            "columns": [col.to_dict() for col in self.columns],
+            "metadata": dict(self.metadata),
+        }
 
 
 class DBCursor(Protocol):

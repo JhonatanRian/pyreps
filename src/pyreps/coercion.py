@@ -5,10 +5,12 @@ from datetime import date, datetime
 from typing import Any
 
 from .contracts import ColumnType
-from .exceptions import CoercionError
 
 _BOOL_TRUTHY = frozenset({"true", "1", "yes", "sim", "on"})
 _BOOL_FALSY = frozenset({"false", "0", "no", "não", "nao", "off"})
+
+BOOL_STRINGS = _BOOL_TRUTHY | _BOOL_FALSY
+"""Set of all strings interpreted as booleans."""
 
 _DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y")
 _DATETIME_FORMATS = (
