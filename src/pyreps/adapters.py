@@ -21,11 +21,15 @@ class ListDictAdapter(InputAdapter[Iterable[Mapping[str, Any]]]):
     def adapt(self, data_source: Iterable[Mapping[str, Any]]) -> Iterable[Record]:
         match data_source:
             case str() | bytes() | bytearray():
-                raise InputAdapterError("list/dict adapter requires an iterable of mappings")
+                raise InputAdapterError(
+                    "list/dict adapter requires an iterable of mappings"
+                )
             case Iterable():
                 return ensure_mapping_stream(iter(data_source))
             case _:
-                raise InputAdapterError("list/dict adapter requires an iterable of mappings")
+                raise InputAdapterError(
+                    "list/dict adapter requires an iterable of mappings"
+                )
 
 
 class JsonAdapter(InputAdapter[str | bytes | Mapping[str, Any] | list[Any]]):
@@ -45,7 +49,9 @@ class JsonAdapter(InputAdapter[str | bytes | Mapping[str, Any] | list[Any]]):
             case Mapping() | list():
                 payload = data_source
             case _:
-                raise InputAdapterError("json adapter expects JSON text, dict, or list payload")
+                raise InputAdapterError(
+                    "json adapter expects JSON text, dict, or list payload"
+                )
 
         if isinstance(payload, Mapping):
             items = payload.get("items")

@@ -25,7 +25,7 @@ from reportlab.platypus import (
 )
 from rustpy_xlsxwriter import FastExcel
 
-from .contracts import OutputFormat, Renderer, ReportSpec
+from .contracts import OutputFormat, Record, Renderer, ReportSpec
 from .csv_options import CsvRenderOptions
 from .exceptions import wrap_render_error
 from .pdf_options import PdfRenderOptions

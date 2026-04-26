@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Callable, Iterable, Literal, Mapping, Protocol, get_args
+from typing import Any, Callable, Iterable, Literal, Mapping, Protocol
 
 from .exceptions import InvalidSpecError
 from .utils.options import ensure_unique, validate_literal, validate_str
@@ -47,7 +47,9 @@ class ColumnSpec:
             validate_literal(self.type, ColumnType, "column type")
 
         if self.formatter is not None and not callable(self.formatter):
-            raise InvalidSpecError(f"Column formatter must be callable, got {self.formatter!r}")
+            raise InvalidSpecError(
+                f"Column formatter must be callable, got {self.formatter!r}"
+            )
 
         # Pre-split source for performance in mapping hot-path
         object.__setattr__(self, "_source_parts", tuple(self.source.split(".")))

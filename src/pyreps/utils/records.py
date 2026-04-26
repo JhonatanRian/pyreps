@@ -67,7 +67,9 @@ class TupleRecord(Mapping[str, Any]):
         return len(self._col_map)
 
 
-def flatten_record(record: Mapping[str, Any], prefix: str = "") -> Iterator[tuple[str, Any]]:
+def flatten_record(
+    record: Mapping[str, Any], prefix: str = ""
+) -> Iterator[tuple[str, Any]]:
     """
     Flatten a nested record into an iterator of (dot_notation_key, value).
     """

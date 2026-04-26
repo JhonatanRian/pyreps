@@ -318,6 +318,7 @@ def test_coercion_applies_to_all_records() -> None:
 
 def test_coercion_error_reports_correct_row_number() -> None:
     from pyreps.utils.records import track_stream
+
     records = [{"v": "1"}, {"v": "bad"}, {"v": "3"}]
     spec = ReportSpec(columns=[ColumnSpec(label="out", source="v", type="int")])
 

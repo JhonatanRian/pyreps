@@ -4,10 +4,8 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
 
 from .adapters import JsonAdapter, JsonStreamingAdapter
-from .contracts import OutputFormat
 from .inference import infer_report_spec
 
 
@@ -17,10 +15,15 @@ def create_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Infer command
-    infer_parser = subparsers.add_parser("infer", help="Infer ReportSpec from a data source")
+    infer_parser = subparsers.add_parser(
+        "infer", help="Infer ReportSpec from a data source"
+    )
     infer_parser.add_argument("file", type=str, help="Path to JSON file")
     infer_parser.add_argument(
-        "--sample", type=int, default=100, help="Number of records to sample (default: 100)"
+        "--sample",
+        type=int,
+        default=100,
+        help="Number of records to sample (default: 100)",
     )
     infer_parser.add_argument(
         "--format",

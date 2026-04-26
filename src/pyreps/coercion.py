@@ -33,6 +33,7 @@ def make_format_cache() -> FormatCache:
     """Create a new format cache scoped to a single mapping run."""
     return {"date": "", "datetime": ""}
 
+
 def coerce_value(
     value: Any,
     column_type: ColumnType,
@@ -66,7 +67,6 @@ def get_coercer_fn(
     coercer = _COERCERS[column_type]
     requires_cache = column_type in _CACHED_TYPES
     return coercer, requires_cache
-
 
 
 def _coerce_str(value: Any) -> str:

@@ -8,7 +8,9 @@ from ..exceptions import InvalidSpecError, ReportError
 def validate_str(value: Any, field_name: str) -> str:
     """Ensure value is a non-empty string."""
     if not isinstance(value, str) or not value:
-        raise InvalidSpecError(f"{field_name} must be a non-empty string, got {value!r}")
+        raise InvalidSpecError(
+            f"{field_name} must be a non-empty string, got {value!r}"
+        )
     return value
 
 

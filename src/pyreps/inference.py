@@ -105,7 +105,7 @@ def infer_report_spec(
     """
     # Use buckets to group values by key in a single pass
     buckets: dict[str, list[Any]] = defaultdict(list)
-    
+
     # Track the number of records seen
     count = 0
     for record in itertools.islice(adapter.adapt(data_source), sample_size):
