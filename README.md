@@ -123,10 +123,10 @@ Benchmark with 6 columns and declarative types:
 
 | Format | 500K rows | Peak RAM | rows/s |
 |---------|------------|----------|--------|
-| CSV | 15s | **0.16 MB** | ~33K |
-| XLSX | 24s | **0.62 MB** | ~21K |
+| CSV | 2.39s | **51.11 MB** | ~209K |
+| XLSX | 4.37s | **51.11 MB** | ~114K |
 
-> CSV and XLSX maintain constant memory regardless of volume.
+> Memory usage remains stable (approx. 51MB process baseline) regardless of volume due to the 100% streaming pipeline.
 
 ## Documentation
 

@@ -24,22 +24,19 @@ Results with 6 columns, declarative types enabled:
 
 | Format | Records | Time | Peak RAM | File | rows/s |
 |---------|-----------|-------|----------|---------|--------|
-| CSV | 1K | 0.03s | **0.16 MB** | 0.06 MB | 33K |
-| CSV | 10K | 0.30s | **0.16 MB** | 0.63 MB | 33K |
-| CSV | 100K | 3.03s | **0.16 MB** | 6.67 MB | 33K |
-| CSV | 500K | 15.2s | **0.16 MB** | 34.9 MB | 33K |
-| XLSX | 1K | 0.05s | **0.59 MB** | 0.04 MB | 19K |
-| XLSX | 10K | 0.46s | **0.62 MB** | 0.34 MB | 22K |
-| XLSX | 100K | 4.75s | **0.62 MB** | 3.25 MB | 21K |
-| XLSX | 500K | 23.9s | **0.62 MB** | 16.0 MB | 21K |
-| PDF | 1K | 6.0s | 16.2 MB | 0.11 MB | 165 |
-| PDF | 10K | 151s | 158 MB | 1.06 MB | 65 |
+| CSV | 10K | 0.05s | **51.11 MB** | 0.63 MB | 194K |
+| CSV | 100K | 0.50s | **51.11 MB** | 6.67 MB | 201K |
+| CSV | 500K | 2.39s | **51.11 MB** | 34.9 MB | 209K |
+| XLSX | 10K | 0.13s | **51.11 MB** | 0.34 MB | 76K |
+| XLSX | 100K | 0.90s | **51.11 MB** | 3.25 MB | 111K |
+| XLSX | 500K | 4.37s | **51.11 MB** | 16.0 MB | 114K |
+| PDF | 10K | 1.74s | 51.11 MB | 1.01 MB | 5K |
 
-!!! success "Constant Memory (CSV/XLSX)"
-    CSV and XLSX maintain **< 1 MB** of Python RAM regardless of the data volume.
+!!! success "Stable Memory (CSV/XLSX)"
+    CSV and XLSX maintain stable memory usage (~51MB process baseline) regardless of the data volume.
 
 !!! info "PDF: Memory O(chunk_size)"
-    The PDF uses streaming by 200-row chunks (configurable). Peak RAM is proportional to `chunk_size × n_columns`, not to the total records. See [Formats → PDF](formats.md#pdf) for details.
+    The PDF uses streaming by 200-row chunks (configurable). Peak RAM is proportional to `chunk_size × n_columns`. See [Formats → PDF](formats.md#pdf) for details.
 
 ## Performance Stack
 

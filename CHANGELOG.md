@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-04-26
+
+### Added
+- Implemented automated report specification inference (`ReportSpec`) from mapping records.
+- Added CLI tool for JSON data analysis and specification generation.
+- Introduced memory stability testing suite to ensure constant memory usage in streaming pipelines.
+- Added comprehensive unit tests for CLI, adapters, and internal utilities.
+- New project task documentation and development guides.
+
+### Changed
+- Optimized coercion performance for large datasets.
+- Implemented row-level error tracking with context enrichment and detailed exception handling.
+- Improved type safety across all input adapters and mapping components.
+- Refactored internal utilities for database connections and XML/ZIP patching.
+
 ## [0.1.5] - 2026-04-24
 
 ### Added
