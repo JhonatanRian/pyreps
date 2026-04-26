@@ -316,10 +316,18 @@ def test_coercion_applies_to_all_records() -> None:
     assert rows == [{"out": 1}, {"out": 2}, {"out": 3}]
 
 
-def test_coercion_error_reports_correct_record_index() -> None:
+def test_coercion_error_reports_correct_row_number() -> None:
+    from pyreps.utils.records import track_stream
     records = [{"v": "1"}, {"v": "bad"}, {"v": "3"}]
-    with pytest.raises(CoercionError, match="record index 1"):
-        _map(records, type="int", source="v")
+    spec = ReportSpec(columns=[ColumnSpec(label="out", source="v", type="int")])
+
+    # Use the abstraction even in tests to get the row number
+    stream = track_stream(map_records(records, spec), "mapping", MappingError)
+
+    with pytest.raises(CoercionError) as exc_info:
+        list(stream)
+
+    assert exc_info.value.row_number == 1
 
 
 # ── format cache isolation (thread-safety) ───────────────────────────
@@ -376,7 +384,7 @@ def test_coerce_value_without_cache_still_works() -> None:
     """Direct coerce_value calls without cache parameter remain functional."""
     from pyreps.coercion import coerce_value
 
-    result = coerce_value("2025-06-15", "date", source="v", record_index=0)
+    result = coerce_value("2025-06-15", "date", source="v")
     assert result == date(2025, 6, 15)
 
 

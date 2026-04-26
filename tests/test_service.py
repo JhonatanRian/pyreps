@@ -183,4 +183,6 @@ def test_generate_report_removes_partial_file_on_error(
         )
 
     assert not destination.exists()
-    assert f"partial file removed: {destination}" in caplog.text
+    assert "report generation failed" in caplog.text
+    assert f"destination={destination}" in caplog.text
+    assert "error_type=RuntimeError" in caplog.text

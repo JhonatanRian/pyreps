@@ -98,10 +98,11 @@ Boolean coercion accepts strings in both **pt-BR and en-US**:
 
 ## Coercion Errors
 
-If the conversion fails, a `MappingError` is raised with context:
+If the conversion fails, a `MappingError` is raised. Since pyreps uses a streaming pipeline, errors are enriched with the row number and the pipeline stage where they occurred using Python 3.11+ `add_note()`:
 
-```
-MappingError: cannot coerce field 'total' value 'abc' to type 'int' in record index 3
+```text
+MappingError: cannot coerce field 'total' value 'abc' to type 'int'
+failure at row 3 during stage: mapping
 ```
 
 !!! note "None passes through"

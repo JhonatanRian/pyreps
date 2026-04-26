@@ -1,8 +1,40 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+import logging
+from collections.abc import Generator, Iterable, Iterator, Mapping, Sequence
 from operator import itemgetter
 from typing import Any
+
+from ..exceptions import ReportError
+
+logger = logging.getLogger("pyreps")
+
+
+def track_stream[T](
+    iterable: Iterable[T], stage: str, exception_cls: type[ReportError]
+) -> Generator[T, None, None]:
+    """
+    Generator that tracks the current row index and enriches exceptions with failure context.
+    Uses add_note() (Python 3.11+) to provide detailed failure trace.
+    """
+
+    i = -1
+    try:
+        for i, item in enumerate(iterable):
+            yield item
+    except Exception as exc:
+        # Error from the source iterable (e.g. adapter fetching data)
+        # 'i' is the last successful index, so the failure happened at i + 1
+        row_number = i + 1
+        if isinstance(exc, ReportError):
+            if exc.row_number is None:
+                exc.row_number = row_number
+            exc.add_note(f"failure at row {row_number} during stage: {stage}")
+            raise
+
+        new_exc = exception_cls(f"Error during {stage}: {exc}", row_number=row_number)
+        new_exc.add_note(f"failure at row {row_number} during stage: {stage}")
+        raise new_exc from exc
 
 
 class TupleRecord(Mapping[str, Any]):
