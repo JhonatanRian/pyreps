@@ -20,7 +20,7 @@ __version__: str
 try:
     __version__ = version("pyreps")
 except PackageNotFoundError:
-    __version__ = "0.0.0-dev"
+    __version__ = "0.3.0"
 
 
 def __getattr__(name: str) -> Any:
