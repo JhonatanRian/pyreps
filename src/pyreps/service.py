@@ -22,6 +22,7 @@ from .contracts import (
 from .exceptions import InputAdapterError, MappingError, ReportError
 from .mapping import map_records
 from .renderers import default_renderer_registry
+from .utils.files import prepare_destination
 from .utils.records import track_stream
 
 from dataclasses import dataclass, field
@@ -31,9 +32,9 @@ logger = logging.getLogger("pyreps")
 
 @contextmanager
 def _report_transaction(
-    destination: Path, output_format: str
+    destination: Path | str, output_format: str
 ) -> Generator[None, None, None]:
-    """Encapsula telemetria e cleanup transacional para geração de relatórios."""
+    """Encapsulates telemetry and transactional cleanup for report generation."""
     start_time = time.perf_counter()
     try:
         yield
@@ -45,8 +46,9 @@ def _report_transaction(
             elapsed,
         )
     except Exception as exc:
-        # Performance: unlink(missing_ok=True) é atômico e evita I/O redundante de .exists()
-        destination.unlink(missing_ok=True)
+        if isinstance(destination, Path):
+            destination.unlink(missing_ok=True)
+        # Remote cleanup is handled by renderers' finally block or fsspec transactional open
         row_num = getattr(exc, "row_number", None)
         logger.error(
             "report generation failed: format=%s destination=%s row_number=%s error_type=%s",
@@ -56,6 +58,7 @@ def _report_transaction(
             type(exc).__name__,
         )
         raise
+
 
 
 @dataclass(slots=True)
@@ -117,7 +120,7 @@ def generate_report[T](
     renderer_registry: dict[str, Renderer] | None = None,
     progress_callback: ProgressCallback | None = None,
     total_rows: int | None = None,
-) -> Path:
+) -> Path | str:
     progress_ctx: ProgressContext = (
         ReportProgressContext(progress_callback, total_rows)
         if progress_callback
@@ -132,13 +135,13 @@ def generate_report[T](
     progress_ctx.set_stage("adapting_data")
 
     records = adapter.adapt(data_source)
-    # Rastreia erros de streaming vindos do adaptador (ex: queda de conexão SQL)
+    # Tracks streaming errors from the adapter (e.g. SQL connection drop)
     tracked_records = track_stream(records, "adapter", InputAdapterError)
 
     progress_ctx.set_stage("mapping_records")
 
     mapped_rows = map_records(tracked_records, spec)
-    # Rastreia erros de mapeamento e coerção durante o streaming
+    # Tracks mapping and coercion errors during streaming
     tracked_rows = track_stream(mapped_rows, "mapping", MappingError)
 
     registry = renderer_registry or default_renderer_registry()
@@ -146,7 +149,7 @@ def generate_report[T](
     if renderer is None:
         raise ReportError(f"no renderer registered for format '{spec.output_format}'")
 
-    output_path = Path(destination)
+    output_path = prepare_destination(destination)
     with _report_transaction(output_path, spec.output_format):
         result = renderer.render(
             tracked_rows, spec, output_path, progress_context=progress_ctx

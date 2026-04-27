@@ -10,17 +10,24 @@ O **{{ project_name }}** é uma biblioteca Python de alta performance projetada 
 - **💧 Streaming 100%**: Projetado para processar milhões de linhas sem estourar a memória RAM, mantendo um pipeline de streaming contínuo.
 - **🛠️ Tipagem Declarativa**: Use `ReportSpec` e `ColumnSpec` para definir como seus dados devem ser mapeados e formatados de forma limpa e segura.
 - **🔌 Adaptadores Flexíveis**: Suporte nativo para listas de dicionários, JSON e bancos de dados SQL.
+- **☁️ Cloud Native Streaming**: Stream direto para S3, GCS, Azure e Oracle via URIs (`s3://`, `gcs://`, etc).
 
 ## Instalação
 
 Você pode instalar o **{{ project_name }}** usando seu gerenciador de pacotes favorito:
 
 ```bash
-# Usando uv (Recomendado)
-uv add {{ project_name }}
+# Somente o núcleo
+pip install pyreps
 
-# Usando pip
-pip install {{ project_name }}
+# Com suporte a Cloud (S3, GCS, etc.)
+pip install "pyreps[all]"  # ou [aws], [gcp], [azure], [oracle]
+```
+
+Ou com **uv**:
+
+```bash
+uv add "pyreps[all]"
 ```
 
 ## Exemplo Rápido

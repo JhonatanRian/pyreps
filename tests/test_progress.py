@@ -76,8 +76,9 @@ def test_progress_callback_xlsx(tmp_path):
     )
 
     stages = [p.current_stage for p in captured_progress]
-    assert "writing_xlsx_rows" in stages
-    assert "finalizing_xlsx" in stages
+    assert "writing_rows" in stages
+
+    assert "finalizing" in stages
 
     processed_counts = [p.total_rows_processed for p in captured_progress]
     assert 1000 in processed_counts
@@ -108,8 +109,8 @@ def test_progress_callback_pdf(tmp_path):
     )
 
     stages = [p.current_stage for p in captured_progress]
-    assert "preparing_pdf_document" in stages
-    assert "writing_pdf_rows" in stages
-    assert "finalizing_pdf" in stages
+    assert "preparing" in stages
+    assert "writing_rows" in stages
+    assert "finalizing" in stages
 
     assert captured_progress[-1].total_rows_processed == 500

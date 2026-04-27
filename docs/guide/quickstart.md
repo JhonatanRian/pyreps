@@ -5,19 +5,31 @@
 === "pip"
 
     ```bash
+    # Core only
     pip install {{ project_name }}
+
+    # With Cloud support
+    pip install "{{ project_name }}[all]"
     ```
 
 === "uv"
 
     ```bash
+    # Core only
     uv add {{ project_name }}
+
+    # With Cloud support
+    uv add "{{ project_name }}[all]"
     ```
 
 === "poetry"
 
     ```bash
+    # Core only
     poetry add {{ project_name }}
+
+    # With Cloud support
+    poetry add "{{ project_name }}[all]"
     ```
 
 ## Core Concepts
@@ -137,6 +149,22 @@ spec = ReportSpec(
 ```python
 ColumnSpec(label="Status", source="status", default="Pending")
 ColumnSpec(label="Email", source="contact.email", required=True)  # error if missing
+```
+
+## Cloud Storage Streaming
+
+If you installed the cloud extras (e.g., `pyreps[aws]`), you can stream 
+directly to cloud buckets by using URIs as the `destination`:
+
+```python
+# S3 (AWS)
+generate_report(..., destination="s3://my-bucket/reports/sales.csv")
+
+# GCS (Google Cloud)
+generate_report(..., destination="gs://my-bucket/reports/sales.xlsx")
+
+# Azure Blob Storage
+generate_report(..., destination="abfs://container/reports/sales.pdf")
 ```
 
 !!! tip "Next step"

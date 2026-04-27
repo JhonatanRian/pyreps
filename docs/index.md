@@ -44,6 +44,13 @@ hide:
     3 runtime dependencies. No pandas, no numpy.
     Install and use in seconds.
 
+-   :material-cloud-upload:{ .lg .middle } **Cloud Native Streaming**
+
+    ---
+
+    Stream directly to S3, GCS, Azure, and OCI using `s3://`, `gcs://`, etc.
+    Zero-memory overhead via multipart uploads.
+
 </div>
 
 ---

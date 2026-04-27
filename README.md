@@ -17,17 +17,22 @@
 
 ## ✨ Highlights
 
-- **🚀 High Performance** — 100% streaming pipeline. CSV and XLSX use < 1 MB of RAM with 500K+ rows.
-- **🦀 Powered by Rust** — XLSX via `rustpy-xlsxwriter`, JSON via `orjson`.
-- **📄 3 Formats** — CSV, XLSX, and PDF with a single API.
-- **🔌 Pluggable** — Supports `list[dict]`, JSON, SQL, or any custom source.
-- **🎯 Declarative Types** — Automatic coercion for `int`, `float`, `bool`, `date`, `datetime`.
-- **🪶 Lightweight** — 3 runtime dependencies. No pandas, no numpy.
+-   :material-lightning-bolt:{ .lg .middle } **High Performance** — 100% streaming pipeline. CSV and XLSX use < 1 MB of RAM with 500K+ rows.
+-   **🦀 Powered by Rust** — XLSX via `rustpy-xlsxwriter`, JSON via `orjson`.
+-   **📄 3 Formats** — CSV, XLSX, and PDF with a single API.
+-   **🔌 Pluggable** — Supports `list[dict]`, JSON, SQL, or any custom source.
+-   **☁️ Cloud Native Streaming** — Stream directly to S3, GCS, Azure, and OCI using `s3://`, `gcs://`, etc.
+-   **🎯 Declarative Types** — Automatic coercion for `int`, `float`, `bool`, `date`, `datetime`.
+-   **🪶 Lightweight** — 3 runtime dependencies. No pandas, no numpy.
 
 ## Installation
 
 ```bash
+# Core only
 pip install pyreps
+
+# With Cloud support (S3, GCS, etc.)
+pip install "pyreps[all]"  # or [aws], [gcp], [azure], [oracle]
 ```
 
 ## Quickstart
@@ -51,7 +56,11 @@ spec = ReportSpec(
     ],
 )
 
-path = generate_report(data_source=data, spec=spec, destination="sales.csv")
+# Local destination
+generate_report(data_source=data, spec=spec, destination="sales.csv")
+
+# ☁️ OR Direct Cloud Streaming (requires pyreps[aws])
+generate_report(data_source=data, spec=spec, destination="s3://my-bucket/sales.csv")
 ```
 
 ## Supported Formats

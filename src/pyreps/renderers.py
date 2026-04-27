@@ -31,7 +31,7 @@ from .exceptions import wrap_render_error
 from .pdf_options import PdfRenderOptions
 from .xlsx_options import XlsxColumnOptions, XlsxRenderOptions
 from .utils import atomic_write
-from .utils.files import prepare_destination
+from .utils.files import is_remote_path, local_render_path, open_destination, prepare_destination
 from .utils.options import clamp
 from .utils.records import WidthTracker, get_cell_value
 from .utils.xml_zip import patch_zip_xml, stream_patch_sheet_xml
@@ -57,13 +57,15 @@ class CsvRenderer(Renderer):
         spec: ReportSpec,
         destination: str | Path,
         progress_context: ProgressContext,
-    ) -> Path:
+    ) -> Path | str:
         output_path = prepare_destination(destination)
         options = CsvRenderOptions.from_metadata(spec.metadata)
 
         progress_context.set_stage("writing_rows")
 
-        with output_path.open("w", newline="", encoding=spec.encoding) as handle:
+        with open_destination(
+            output_path, "w", newline="", encoding=spec.encoding
+        ) as handle:
             writer = csv.DictWriter(
                 handle,
                 fieldnames=spec.labels,
@@ -87,11 +89,27 @@ class XlsxRenderer(Renderer):
         spec: ReportSpec,
         destination: str | Path,
         progress_context: ProgressContext,
-    ) -> Path:
-        output_path = prepare_destination(destination)
-        options = XlsxRenderOptions.from_metadata(spec.metadata)
+    ) -> Path | str:
+        with local_render_path(
+            destination, suffix=".xlsx", progress_context=progress_context
+        ) as output_path:
+            self._render_xlsx(rows, spec, output_path, progress_context)
 
-        progress_context.set_stage("writing_xlsx_rows")
+        if not is_remote_path(destination):
+            progress_context.set_stage("finalizing")
+
+        return destination
+
+    def _render_xlsx(
+        self,
+        rows: Iterable[Record],
+        spec: ReportSpec,
+        output_path: Path,
+        progress_context: ProgressContext,
+    ) -> None:
+        """Core XLSX rendering logic."""
+        options = XlsxRenderOptions.from_metadata(spec.metadata)
+        progress_context.set_stage("writing_rows")
 
         if _needs_width_override(options):
             data, tracker = _get_xlsx_row_stream(rows, spec, options)
@@ -114,10 +132,6 @@ class XlsxRenderer(Renderer):
                 options.sheet_name,
                 progress_context.track_rows(rows),
             ).save()
-
-        progress_context.set_stage("finalizing_xlsx")
-
-        return output_path
 
 
 def _get_xlsx_row_stream(
@@ -178,13 +192,30 @@ class PdfRenderer(Renderer):
         spec: ReportSpec,
         destination: str | Path,
         progress_context: ProgressContext,
-    ) -> Path:
-        output_path = prepare_destination(destination)
+    ) -> Path | str:
+        with local_render_path(
+            destination, suffix=".pdf", progress_context=progress_context
+        ) as output_path:
+            self._render_pdf(rows, spec, output_path, progress_context)
+
+        if not is_remote_path(destination):
+            progress_context.set_stage("finalizing")
+
+        return destination
+
+    def _render_pdf(
+        self,
+        rows: Iterable[Record],
+        spec: ReportSpec,
+        output_path: Path,
+        progress_context: ProgressContext,
+    ) -> None:
+        """Core PDF rendering logic using ReportLab Platypus."""
         labels = spec.labels
         styles = getSampleStyleSheet()
         normal_style = cast(ParagraphStyle, styles["Normal"])
 
-        progress_context.set_stage("preparing_pdf_document")
+        progress_context.set_stage("preparing")
 
         doc = StreamingDocTemplate(
             str(output_path),
@@ -210,21 +241,7 @@ class PdfRenderer(Renderer):
         self._setup_pages(doc, header_table, header_height)
 
         pdf_opts = PdfRenderOptions.from_metadata(spec.metadata)
-        chunk_size = pdf_opts.chunk_size
-
-        base_style_cmds = _PDF_COMMON_STYLE + [
-            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-            ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ]
-
-        style_even = TableStyle(
-            base_style_cmds
-            + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, _PDF_STRIPE_COLOR])]
-        )
-        style_odd = TableStyle(
-            base_style_cmds
-            + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [_PDF_STRIPE_COLOR, colors.white])]
-        )
+        style_even, style_odd = self._get_table_styles()
 
         def generate_chunks() -> Iterable[Table | Spacer]:
             threshold = pdf_opts.paragraph_threshold
@@ -232,15 +249,10 @@ class PdfRenderer(Renderer):
             single_label = len(labels) == 1
             is_even = True
 
-            progress_context.set_stage("writing_pdf_rows")
-
+            progress_context.set_stage("writing_rows")
             rows_to_track = progress_context.track_rows(all_rows_iter)
 
-            while True:
-                chunk = list(itertools.islice(rows_to_track, chunk_size))
-                if not chunk:
-                    break
-
+            for chunk in itertools.batched(rows_to_track, pdf_opts.chunk_size):
                 table_rows = []
                 for row in chunk:
                     values = fetcher(row)
@@ -259,16 +271,28 @@ class PdfRenderer(Renderer):
                 table = Table(table_rows, colWidths=col_widths)
                 table.setStyle(style_even if is_even else style_odd)
                 is_even = not is_even
-
                 yield table
 
             yield Spacer(1, 0.5 * cm)
 
         doc.build_from_generator(generate_chunks())
 
-        progress_context.set_stage("finalizing_pdf")
+    def _get_table_styles(self) -> tuple[TableStyle, TableStyle]:
+        """Create alternating row styles for PDF tables."""
+        base_style_cmds = _PDF_COMMON_STYLE + [
+            ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ]
 
-        return output_path
+        style_even = TableStyle(
+            base_style_cmds
+            + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [colors.white, _PDF_STRIPE_COLOR])]
+        )
+        style_odd = TableStyle(
+            base_style_cmds
+            + [("ROWBACKGROUNDS", (0, 0), (-1, -1), [_PDF_STRIPE_COLOR, colors.white])]
+        )
+        return style_even, style_odd
 
     def _create_header_table(
         self, labels: Sequence[str], col_widths: Sequence[float], style: ParagraphStyle
