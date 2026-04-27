@@ -1,4 +1,3 @@
-import pytest
 from pyreps import ColumnSpec, ReportSpec, generate_report
 from pyreps.contracts import ProgressInfo
 
@@ -30,7 +29,7 @@ def test_progress_callback_csv(tmp_path):
     # Stages expected in order (approximate as set_stage fires callback)
     # initializing (default) -> resolving_adapter -> adapting_data -> mapping_records ->
     # writing_rows -> 1000 rows -> 2000 rows -> 2500 rows -> finalizing -> finish
-    
+
     stages = [p.current_stage for p in captured_progress]
     assert "resolving_adapter" in stages
     assert "writing_rows" in stages
@@ -75,7 +74,7 @@ def test_progress_callback_xlsx(tmp_path):
     stages = [p.current_stage for p in captured_progress]
     assert "writing_xlsx_rows" in stages
     assert "finalizing_xlsx" in stages
-    
+
     processed_counts = [p.total_rows_processed for p in captured_progress]
     assert 1000 in processed_counts
     assert 1500 in processed_counts
@@ -108,5 +107,5 @@ def test_progress_callback_pdf(tmp_path):
     assert "preparing_pdf_document" in stages
     assert "writing_pdf_rows" in stages
     assert "finalizing_pdf" in stages
-    
+
     assert captured_progress[-1].total_rows_processed == 500

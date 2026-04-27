@@ -1,6 +1,7 @@
 import timeit
 import itertools
 
+
 def with_countdown(n, chunk_size):
     processed = 0
     countdown = chunk_size
@@ -11,6 +12,7 @@ def with_countdown(n, chunk_size):
             processed = i
     return processed
 
+
 def with_batched(n, chunk_size):
     processed = 0
     for chunk in itertools.batched(range(n), chunk_size):
@@ -18,6 +20,7 @@ def with_batched(n, chunk_size):
             pass
         processed += len(chunk)
     return processed
+
 
 n = 10_000_000
 chunk_size = 1000
@@ -27,4 +30,4 @@ t2 = timeit.timeit(lambda: with_batched(n, chunk_size), number=1)
 
 print(f"Countdown: {t1:.4f}s")
 print(f"Batched: {t2:.4f}s")
-print(f"Difference: {(t1/t2 - 1)*100:.2f}% faster")
+print(f"Difference: {(t1 / t2 - 1) * 100:.2f}% faster")
