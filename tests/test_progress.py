@@ -1,3 +1,4 @@
+import pytest
 from pyreps import ColumnSpec, ReportSpec, generate_report
 from pyreps.contracts import ProgressInfo
 
@@ -45,7 +46,10 @@ def test_progress_callback_csv(tmp_path):
     final_info = captured_progress[-1]
     assert final_info.total_rows_processed == 2500
     assert final_info.estimated_completion is not None
-    assert final_info.estimated_completion >= final_info.elapsed_seconds
+    # Use approx to handle floating point precision jitter
+    assert final_info.estimated_completion == pytest.approx(
+        final_info.elapsed_seconds, rel=1e-5
+    )
 
 
 def test_progress_callback_xlsx(tmp_path):
