@@ -5,3 +5,4 @@ site/
 .gemini
 .agent
 memory_report.md
+docs/tasks/*
