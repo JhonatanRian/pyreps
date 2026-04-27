@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/JhonatanRian/pyreps/compare/v0.2.0...v0.3.0) (2026-04-27)
+
+
+### Features
+
+* implement progress tracking system for report generation with callback support ([#3](https://github.com/JhonatanRian/pyreps/issues/3)) ([23f4175](https://github.com/JhonatanRian/pyreps/commit/23f4175300edea9ca16bb7a8da533b656b32f32d))
+
 ## [0.2.0] - 2026-04-26
 
 ### Added
